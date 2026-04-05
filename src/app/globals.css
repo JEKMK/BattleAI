@@ -1,26 +1,156 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Cyberpunk Retro Palette — Blade Runner / Neuromancer / Ghost in the Shell */
+  --bg-deep: #0a0a0f;
+  --bg-panel: #0d0d14;
+  --bg-surface: #12121c;
+  --bg-elevated: #1a1a28;
+
+  /* Neon accents */
+  --cyan: #00f0ff;
+  --cyan-dim: #00f0ff66;
+  --magenta: #ff2d6a;
+  --magenta-dim: #ff2d6a66;
+  --amber: #ffb800;
+  --amber-dim: #ffb80066;
+  --green: #39ff14;
+  --green-dim: #39ff1466;
+  --purple: #b44aff;
+  --purple-dim: #b44aff66;
+
+  /* Faction colors */
+  --faction-anthropic: #b44aff;
+  --faction-openai: #39ff14;
+  --faction-google: #00f0ff;
+  --faction-qwen: #ffb800;
+  --faction-mistral: #e0e0e0;
+  --faction-meta: #ff2d6a;
+
+  /* Text */
+  --text-primary: #e0e0e8;
+  --text-secondary: #7a7a8e;
+  --text-dim: #4a4a5e;
+
+  /* Borders */
+  --border: #1e1e2e;
+  --border-bright: #2a2a3e;
+
+  /* Semantic */
+  --background: var(--bg-deep);
+  --foreground: var(--text-primary);
+  --muted: var(--text-secondary);
+  --destructive: var(--magenta);
+
+  /* Glow */
+  --glow-cyan: 0 0 20px #00f0ff44, 0 0 40px #00f0ff22;
+  --glow-magenta: 0 0 20px #ff2d6a44, 0 0 40px #ff2d6a22;
+  --glow-amber: 0 0 20px #ffb80044, 0 0 40px #ffb80022;
+  --glow-green: 0 0 20px #39ff1444, 0 0 40px #39ff1422;
+  --glow-purple: 0 0 20px #b44aff44, 0 0 40px #b44aff22;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-cyan: var(--cyan);
+  --color-cyan-dim: var(--cyan-dim);
+  --color-magenta: var(--magenta);
+  --color-magenta-dim: var(--magenta-dim);
+  --color-amber: var(--amber);
+  --color-amber-dim: var(--amber-dim);
+  --color-neon-green: var(--green);
+  --color-neon-green-dim: var(--green-dim);
+  --color-purple: var(--purple);
+  --color-purple-dim: var(--purple-dim);
+  --color-muted: var(--muted);
+  --color-bg-deep: var(--bg-deep);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-border: var(--border);
+  --color-border-bright: var(--border-bright);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-dim: var(--text-dim);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-geist-mono), "Courier New", monospace;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Scanline overlay */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan-dim);
+}
+
+/* Selection */
+::selection {
+  background: var(--cyan-dim);
+  color: var(--text-primary);
+}
+
+/* Neon text glow utility */
+.glow-cyan { text-shadow: var(--glow-cyan); }
+.glow-magenta { text-shadow: var(--glow-magenta); }
+.glow-amber { text-shadow: var(--glow-amber); }
+.glow-green { text-shadow: var(--glow-green); }
+.glow-purple { text-shadow: var(--glow-purple); }
+
+/* Neon border glow */
+.border-glow-cyan { box-shadow: var(--glow-cyan), inset 0 0 10px #00f0ff11; }
+.border-glow-magenta { box-shadow: var(--glow-magenta), inset 0 0 10px #ff2d6a11; }
+
+/* Keyframes */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+  96% { opacity: 0.9; }
+  97% { opacity: 1; }
+}
+
+.animate-flicker {
+  animation: flicker 3s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
