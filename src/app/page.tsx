@@ -126,73 +126,62 @@ export default function Home() {
   const isOver = gameState?.status === "ko" || gameState?.status === "timeout";
 
   return (
-    <div className="min-h-screen bg-bg-deep flex flex-col">
+    <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between">
+      <header className="border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <h1 className="font-mono text-lg font-bold tracking-widest glow-cyan text-cyan animate-flicker">
+          <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
           </h1>
-          <span className="text-text-dim text-xs font-mono">v0.1 PROTOTYPE</span>
+          <div className="h-3 w-px bg-border" />
+          <span className="text-text-dim text-[9px] font-mono tracking-wider">NEURAL COMBAT ARENA</span>
         </div>
-        {gameState && (
-          <div className="font-mono text-xs text-text-secondary">
-            TICK {String(gameState.tick).padStart(3, "0")}/120
-          </div>
-        )}
+        <div className="flex items-center gap-4 font-mono text-[10px]">
+          {gameState && (
+            <>
+              <span className="text-text-dim">CYCLE</span>
+              <span className="text-cyan tabular-nums">{String(gameState.tick).padStart(3, "0")}</span>
+              <span className="text-text-dim">/120</span>
+              {gameState.tick >= 30 && (
+                <span className="text-magenta animate-pulse-glow text-[9px]">FIREWALL ACTIVE</span>
+              )}
+            </>
+          )}
+        </div>
       </header>
 
-      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 max-w-7xl mx-auto w-full">
+      <main className="flex-1 flex gap-0 overflow-hidden">
         {/* Left Panel — Config */}
-        <div className="lg:w-80 shrink-0 flex flex-col gap-4">
-          {/* Prompt */}
-          <div className="bg-bg-panel border border-border rounded-sm p-3">
-            <label className="text-text-secondary text-xs font-mono uppercase tracking-wider block mb-2">
-              System Prompt
-            </label>
+        <div className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto">
+          {/* Prompt — hero element */}
+          <div className="p-3 border-b border-border">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan">
+                &gt; Construct Code_
+              </label>
+              <span className="text-text-dim text-[9px] font-mono tabular-nums">~{Math.ceil(prompt.length / 4)} RAM</span>
+            </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              className="w-full h-32 bg-bg-deep border border-border rounded-sm p-2 text-xs font-mono text-text-primary resize-none focus:outline-none focus:border-cyan transition-colors"
-              placeholder="Define your fighter's strategy..."
+              className="w-full h-36 bg-bg-deep border border-border-bright rounded-sm p-2 text-xs font-mono text-cyan/90 resize-none focus:outline-none focus:border-cyan focus:shadow-[0_0_10px_#00f0ff22] transition-all leading-relaxed"
+              placeholder="// Define your construct's neural template..."
               disabled={isFighting}
+              spellCheck={false}
             />
-            <div className="flex justify-between mt-1">
-              <span className="text-text-dim text-[10px] font-mono">
-                {prompt.length} chars
-              </span>
-              <span className="text-text-dim text-[10px] font-mono">
-                ~{Math.ceil(prompt.length / 4)} tokens
-              </span>
-            </div>
           </div>
 
-          {/* Player Faction */}
-          <div className="bg-bg-panel border border-border rounded-sm p-3">
-            <label className="text-text-secondary text-xs font-mono uppercase tracking-wider block mb-2">
-              Your Faction
-            </label>
-            <div className="grid grid-cols-3 gap-2">
+          {/* Factions */}
+          <div className="p-3 border-b border-border">
+            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-1.5">Zaibatsu</label>
+            <div className="grid grid-cols-3 gap-1.5">
               {FACTIONS.map((f) => {
                 const meta = FACTION_META[f];
                 const selected = faction === f;
                 return (
-                  <button
-                    key={f}
-                    onClick={() => setFaction(f)}
-                    disabled={isFighting}
-                    className={`
-                      p-2 rounded-sm border text-[10px] font-mono uppercase tracking-wider transition-all
-                      ${selected
-                        ? "border-current bg-bg-elevated"
-                        : "border-border hover:border-border-bright bg-bg-deep"
-                      }
-                    `}
-                    style={{
-                      color: selected ? meta.color : "var(--text-dim)",
-                      boxShadow: selected ? meta.glow : "none",
-                    }}
-                  >
+                  <button key={f} onClick={() => setFaction(f)} disabled={isFighting}
+                    className={`py-1.5 rounded-sm border text-[9px] font-mono font-bold uppercase tracking-wider transition-all ${selected ? "border-current bg-bg-elevated" : "border-border hover:border-border-bright bg-bg-deep"}`}
+                    style={{ color: selected ? meta.color : "var(--text-dim)", boxShadow: selected ? meta.glow : "none" }}>
                     {meta.label}
                   </button>
                 );
@@ -200,62 +189,29 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Opponent */}
-          <div className="bg-bg-panel border border-border rounded-sm p-3">
-            <label className="text-text-secondary text-xs font-mono uppercase tracking-wider block mb-2">
-              Opponent
-            </label>
-            <div className="flex flex-col gap-2">
+          {/* Target */}
+          <div className="p-3 border-b border-border">
+            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-1.5">Target ICE</label>
+            <div className="flex gap-1.5">
               {BOTS.map((bot) => {
                 const selected = botType === bot.key;
                 return (
-                  <button
-                    key={bot.key}
-                    onClick={() => setBotType(bot.key)}
-                    disabled={isFighting}
-                    className={`
-                      p-2 rounded-sm border text-left transition-all
-                      ${selected
-                        ? "border-magenta bg-bg-elevated"
-                        : "border-border hover:border-border-bright bg-bg-deep"
-                      }
-                    `}
-                  >
-                    <span className={`text-xs font-mono font-bold ${selected ? "text-magenta" : "text-text-secondary"}`}>
-                      {bot.name}
-                    </span>
-                    <p className="text-[10px] font-mono text-text-dim mt-0.5 line-clamp-1">
-                      {bot.prompt.slice(0, 60)}...
-                    </p>
+                  <button key={bot.key} onClick={() => setBotType(bot.key)} disabled={isFighting}
+                    className={`flex-1 py-1.5 rounded-sm border text-center transition-all ${selected ? "border-magenta bg-bg-elevated" : "border-border hover:border-border-bright bg-bg-deep"}`}>
+                    <span className={`text-[9px] font-mono font-bold ${selected ? "text-magenta" : "text-text-secondary"}`}>{bot.name}</span>
                   </button>
                 );
               })}
             </div>
-
-            <label className="text-text-secondary text-xs font-mono uppercase tracking-wider block mt-3 mb-2">
-              Bot Faction
-            </label>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mt-2 mb-1.5">Target Zaibatsu</label>
+            <div className="grid grid-cols-3 gap-1.5">
               {FACTIONS.map((f) => {
                 const meta = FACTION_META[f];
                 const selected = botFaction === f;
                 return (
-                  <button
-                    key={f}
-                    onClick={() => setBotFaction(f)}
-                    disabled={isFighting}
-                    className={`
-                      p-2 rounded-sm border text-[10px] font-mono uppercase tracking-wider transition-all
-                      ${selected
-                        ? "border-current bg-bg-elevated"
-                        : "border-border hover:border-border-bright bg-bg-deep"
-                      }
-                    `}
-                    style={{
-                      color: selected ? meta.color : "var(--text-dim)",
-                      boxShadow: selected ? meta.glow : "none",
-                    }}
-                  >
+                  <button key={f} onClick={() => setBotFaction(f)} disabled={isFighting}
+                    className={`py-1.5 rounded-sm border text-[9px] font-mono font-bold uppercase tracking-wider transition-all ${selected ? "border-current bg-bg-elevated" : "border-border hover:border-border-bright bg-bg-deep"}`}
+                    style={{ color: selected ? meta.color : "var(--text-dim)", boxShadow: selected ? meta.glow : "none" }}>
                     {meta.label}
                   </button>
                 );
@@ -263,262 +219,122 @@ export default function Home() {
             </div>
           </div>
 
-          {/* FIGHT button */}
-          <motion.button
-            onClick={startBattle}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={`
-              w-full py-3 rounded-sm font-mono font-bold text-sm uppercase tracking-[0.3em] transition-all
-              ${isFighting
-                ? "bg-magenta/20 border border-magenta text-magenta"
-                : "bg-cyan/10 border border-cyan text-cyan hover:bg-cyan/20"
-              }
-            `}
-            style={{
-              boxShadow: isFighting ? "var(--glow-magenta)" : "var(--glow-cyan)",
-            }}
-          >
-            {isFighting ? "ABORT" : "FIGHT"}
-          </motion.button>
+          {/* FIGHT */}
+          <div className="p-3">
+            <motion.button onClick={startBattle} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}
+              className={`w-full py-3 rounded-sm font-mono font-bold text-sm uppercase tracking-[0.4em] transition-all ${isFighting ? "bg-magenta/20 border-2 border-magenta text-magenta" : "bg-cyan/10 border-2 border-cyan text-cyan hover:bg-cyan/20"}`}
+              style={{ boxShadow: isFighting ? "var(--glow-magenta)" : "var(--glow-cyan)" }}>
+              {isFighting ? "ABORT" : "JACK IN"}
+            </motion.button>
+          </div>
+
+          {/* Cost */}
+          {usage && (
+            <div className="px-3 pb-2 font-mono text-[9px] text-text-dim">
+              <span className="text-amber">${usage.costUSD.toFixed(4)}</span> | {usage.totalCalls} calls | {usage.totalTokens.toLocaleString()} tok
+            </div>
+          )}
         </div>
 
         {/* Center — Arena */}
-        <div className="flex-1 flex flex-col items-center gap-4">
-          {/* Fighter status bars */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 min-w-0 p-3">
+          {/* Fighter HP bars */}
           {gameState && (
-            <div className="w-full flex items-center gap-4 font-mono text-xs">
-              {/* Red (Player) */}
+            <div className="w-full max-w-lg flex items-center gap-3 font-mono text-[11px]">
               <div className="flex-1">
-                <div className="flex justify-between mb-1">
-                  <span style={{ color: FACTION_META[gameState.fighters[0].faction].color }}>
-                    [P] {gameState.fighters[0].name}
-                  </span>
-                  <span className="text-text-secondary">
-                    {gameState.fighters[0].hp}/{gameState.fighters[0].maxHp} HP
-                  </span>
+                <div className="flex justify-between mb-0.5">
+                  <span className="font-bold" style={{ color: FACTION_META[gameState.fighters[0].faction].color }}>[P] {gameState.fighters[0].name}</span>
+                  <span className="text-text-secondary tabular-nums">{gameState.fighters[0].hp}/{gameState.fighters[0].maxHp} ICE</span>
                 </div>
                 <div className="h-2 bg-bg-deep border border-border rounded-sm overflow-hidden">
-                  <motion.div
-                    className="h-full"
-                    style={{
-                      backgroundColor:
-                        gameState.fighters[0].hp > 5
-                          ? "#39ff14"
-                          : gameState.fighters[0].hp > 2
-                            ? "#ffb800"
-                            : "#ff2d6a",
-                    }}
-                    initial={false}
-                    animate={{ width: `${(gameState.fighters[0].hp / gameState.fighters[0].maxHp) * 100}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
+                  <motion.div className="h-full" style={{ backgroundColor: gameState.fighters[0].hp > 5 ? "#39ff14" : gameState.fighters[0].hp > 2 ? "#ffb800" : "#ff2d6a" }}
+                    initial={false} animate={{ width: `${(gameState.fighters[0].hp / gameState.fighters[0].maxHp) * 100}%` }} transition={{ duration: 0.3 }} />
                 </div>
               </div>
-
-              <span className="text-text-dim text-lg">VS</span>
-
-              {/* Blue (Bot) */}
+              <span className="text-text-dim text-sm font-bold">VS</span>
               <div className="flex-1">
-                <div className="flex justify-between mb-1">
-                  <span className="text-text-secondary">
-                    {gameState.fighters[1].hp}/{gameState.fighters[1].maxHp} HP
-                  </span>
-                  <span style={{ color: FACTION_META[gameState.fighters[1].faction].color }}>
-                    {gameState.fighters[1].name} [B]
-                  </span>
+                <div className="flex justify-between mb-0.5">
+                  <span className="text-text-secondary tabular-nums">{gameState.fighters[1].hp}/{gameState.fighters[1].maxHp} ICE</span>
+                  <span className="font-bold" style={{ color: FACTION_META[gameState.fighters[1].faction].color }}>{gameState.fighters[1].name} [B]</span>
                 </div>
                 <div className="h-2 bg-bg-deep border border-border rounded-sm overflow-hidden">
-                  <motion.div
-                    className="h-full ml-auto"
-                    style={{
-                      backgroundColor:
-                        gameState.fighters[1].hp > 5
-                          ? "#39ff14"
-                          : gameState.fighters[1].hp > 2
-                            ? "#ffb800"
-                            : "#ff2d6a",
-                    }}
-                    initial={false}
-                    animate={{ width: `${(gameState.fighters[1].hp / gameState.fighters[1].maxHp) * 100}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
+                  <motion.div className="h-full ml-auto" style={{ backgroundColor: gameState.fighters[1].hp > 5 ? "#39ff14" : gameState.fighters[1].hp > 2 ? "#ffb800" : "#ff2d6a" }}
+                    initial={false} animate={{ width: `${(gameState.fighters[1].hp / gameState.fighters[1].maxHp) * 100}%` }} transition={{ duration: 0.3 }} />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Arena Canvas */}
+          {/* Arena */}
           <div className="relative">
             <Arena state={gameState} />
-
-            {/* Victory overlay */}
             <AnimatePresence>
               {isOver && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="absolute inset-0 flex items-center justify-center bg-bg-deep/80 backdrop-blur-sm"
-                >
-                  <motion.div
-                    initial={{ scale: 0.5, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", damping: 15 }}
-                    className="text-center"
-                  >
-                    <div
-                      className={`font-mono text-3xl font-bold tracking-widest mb-2 ${
-                        gameState?.winner === "red"
-                          ? "text-cyan glow-cyan"
-                          : gameState?.winner === "blue"
-                            ? "text-magenta glow-magenta"
-                            : "text-amber glow-amber"
-                      }`}
-                    >
-                      {gameState?.winner === "red"
-                        ? "VICTORY"
-                        : gameState?.winner === "blue"
-                          ? "DEFEATED"
-                          : "DRAW"}
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex items-center justify-center bg-bg-deep/80 backdrop-blur-sm">
+                  <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", damping: 15 }} className="text-center">
+                    <div className={`font-mono text-3xl font-bold tracking-widest mb-1 ${gameState?.winner === "red" ? "text-cyan glow-cyan" : gameState?.winner === "blue" ? "text-magenta glow-magenta" : "text-amber glow-amber"}`}>
+                      {gameState?.winner === "red" ? "ICE CRACKED" : gameState?.winner === "blue" ? "FLATLINED" : "DRAW"}
                     </div>
-                    <p className="text-text-secondary text-xs font-mono">
-                      {gameState?.status === "timeout" ? "TIME OUT" : "K.O."}
-                    </p>
+                    <p className="text-text-secondary text-xs font-mono">{gameState?.status === "timeout" ? "TIME OUT" : "SYSTEM DOWN"}</p>
                   </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* Live Debug — current tick actions */}
+          {/* Live Debug */}
           {lastDebug && isFighting && (
             <div className="w-full max-w-lg flex gap-2 font-mono text-[10px]">
-              <div className="flex-1 bg-bg-panel border border-border rounded-sm p-2">
-                <span className="text-purple">[P]</span>{" "}
-                <span className="text-text-secondary">{lastDebug.redAction.move}</span>{" "}
-                <span className="text-amber">{lastDebug.redAction.action}</span>{" "}
-                <span className="text-text-dim">{lastDebug.redLatency}ms</span>
+              <div className="flex-1 bg-bg-surface border border-border rounded-sm px-2 py-1">
+                <span className="text-purple font-bold">[P]</span> <span className="text-text-secondary">{lastDebug.redAction.move}</span> <span className="text-amber">{lastDebug.redAction.action}</span> <span className="text-text-dim">{lastDebug.redLatency}ms</span>
               </div>
-              <div className="flex-1 bg-bg-panel border border-border rounded-sm p-2">
-                <span className="text-neon-green">[B]</span>{" "}
-                <span className="text-text-secondary">{lastDebug.blueAction.move}</span>{" "}
-                <span className="text-amber">{lastDebug.blueAction.action}</span>{" "}
-                <span className="text-text-dim">{lastDebug.blueLatency}ms</span>
+              <div className="flex-1 bg-bg-surface border border-border rounded-sm px-2 py-1">
+                <span className="text-neon-green font-bold">[B]</span> <span className="text-text-secondary">{lastDebug.blueAction.move}</span> <span className="text-amber">{lastDebug.blueAction.action}</span> <span className="text-text-dim">{lastDebug.blueLatency}ms</span>
               </div>
             </div>
           )}
+        </div>
 
+        {/* Right Panel — Log + Analytics */}
+        <div className="w-80 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden">
           {/* Combat Log */}
-          <div className="w-full max-w-lg">
+          <div className="flex-1 min-h-0">
             <CombatLog logs={gameState?.log ?? []} />
           </div>
 
           {/* Post-Battle Analytics */}
-          {usage && (
-            <div className="w-full max-w-lg space-y-3">
-              {/* Action Distribution */}
-              {usage.analytics && (
-                <div className="bg-bg-panel border border-border rounded-sm p-3 font-mono text-xs">
-                  <h3 className="text-text-secondary uppercase tracking-wider text-[10px] mb-3">Battle Analytics</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {(["red", "blue"] as const).map((side) => {
-                      const data = usage.analytics![side];
-                      if (!data) return null;
-                      const isPlayer = side === "red";
-                      const totalActions = Object.values(data.actions).reduce((a, b) => a + b, 0);
-                      const totalMoves = Object.values(data.moves).reduce((a, b) => a + b, 0);
-
-                      return (
-                        <div key={side}>
-                          <div className={`font-bold mb-2 ${isPlayer ? "text-purple" : "text-neon-green"}`}>
-                            {isPlayer ? "[P] PLAYER" : "[B] BOT"}
+          {usage?.analytics && (
+            <div className="border-t border-border p-2 font-mono text-[9px] shrink-0 max-h-40 overflow-y-auto">
+              <h3 className="text-text-secondary uppercase tracking-widest text-[9px] mb-1.5">Analytics</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {(["red", "blue"] as const).map((side) => {
+                  const data = usage.analytics![side];
+                  if (!data) return null;
+                  const isPlayer = side === "red";
+                  const totalActions = Object.values(data.actions).reduce((a, b) => a + b, 0);
+                  return (
+                    <div key={side}>
+                      <div className={`font-bold mb-1 ${isPlayer ? "text-purple" : "text-neon-green"}`}>
+                        {isPlayer ? "[P]" : "[B]"} {data.avgLatency}ms
+                      </div>
+                      {Object.entries(data.actions).sort(([, a], [, b]) => b - a).map(([action, count]) => {
+                        const pct = totalActions > 0 ? (count / totalActions) * 100 : 0;
+                        return (
+                          <div key={action} className="flex items-center gap-0.5">
+                            <span className="w-10 text-[8px] text-text-secondary">{action}</span>
+                            <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
+                              <div className="h-full rounded-sm" style={{
+                                width: `${pct}%`,
+                                backgroundColor: action === "punch" || action === "heavy" ? "#ffb800" : action === "shoot" ? "#39ff14" : action === "block" || action === "dodge" ? "#00f0ff" : action === "parry" ? "#ff2d6a" : "#4a4a5e",
+                              }} />
+                            </div>
+                            <span className="w-7 text-right text-[8px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
                           </div>
-
-                          {/* Action bars */}
-                          <div className="space-y-1 mb-3">
-                            <span className="text-text-dim text-[10px]">ACTIONS</span>
-                            {Object.entries(data.actions)
-                              .sort(([, a], [, b]) => b - a)
-                              .map(([action, count]) => {
-                                const pct = totalActions > 0 ? (count / totalActions) * 100 : 0;
-                                return (
-                                  <div key={action} className="flex items-center gap-1">
-                                    <span className="w-12 text-[10px] text-text-secondary">{action}</span>
-                                    <div className="flex-1 h-2 bg-bg-deep rounded-sm overflow-hidden">
-                                      <div
-                                        className="h-full rounded-sm"
-                                        style={{
-                                          width: `${pct}%`,
-                                          backgroundColor: action === "punch" || action === "heavy" ? "#ffb800"
-                                            : action === "shoot" ? "#39ff14"
-                                            : action === "block" || action === "dodge" ? "#00f0ff"
-                                            : action === "parry" ? "#ff2d6a"
-                                            : "#4a4a5e",
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="w-8 text-right text-[10px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
-                                  </div>
-                                );
-                              })}
-                          </div>
-
-                          {/* Move bars */}
-                          <div className="space-y-1">
-                            <span className="text-text-dim text-[10px]">MOVEMENT</span>
-                            {Object.entries(data.moves)
-                              .sort(([, a], [, b]) => b - a)
-                              .map(([move, count]) => {
-                                const pct = totalMoves > 0 ? (count / totalMoves) * 100 : 0;
-                                const isVertical = move === "up" || move === "down";
-                                return (
-                                  <div key={move} className="flex items-center gap-1">
-                                    <span className="w-12 text-[10px] text-text-secondary">{move}</span>
-                                    <div className="flex-1 h-2 bg-bg-deep rounded-sm overflow-hidden">
-                                      <div
-                                        className="h-full rounded-sm"
-                                        style={{
-                                          width: `${pct}%`,
-                                          backgroundColor: isVertical ? "#b44aff" : move === "none" ? "#4a4a5e" : "#7a7a8e",
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="w-8 text-right text-[10px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
-                                  </div>
-                                );
-                              })}
-                          </div>
-
-                          <div className="mt-2 text-[10px] text-text-dim">
-                            Avg latency: {data.avgLatency}ms
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Cost breakdown */}
-              <div className="bg-bg-panel border border-border rounded-sm p-3 font-mono text-[10px] text-text-dim">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-text-secondary uppercase tracking-wider">Battle Cost</span>
-                  <span className="text-amber font-bold">${usage.costUSD.toFixed(4)}</span>
-                </div>
-                <div className="flex gap-4 mb-1">
-                  <span>Calls: {usage.totalCalls}</span>
-                  <span>In: {usage.totalInputTokens.toLocaleString()} tok</span>
-                  <span>Out: {usage.totalOutputTokens.toLocaleString()} tok</span>
-                  <span>Total: {usage.totalTokens.toLocaleString()} tok</span>
-                </div>
-                {usage.perModel.map((m) => (
-                  <div key={m.model} className="flex gap-3 text-text-dim">
-                    <span className="text-text-secondary">{m.model}</span>
-                    <span>{m.calls} calls</span>
-                    <span>{m.inputTokens.toLocaleString()}+{m.outputTokens.toLocaleString()} tok</span>
-                    <span className="text-amber">${m.costUSD.toFixed(4)}</span>
-                  </div>
-                ))}
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

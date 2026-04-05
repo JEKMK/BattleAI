@@ -56,6 +56,7 @@ export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameS
   return {
     tick: 0,
     arena: { width: config.arenaWidth, height: config.arenaHeight },
+    bounds: { minX: 0, minY: 0, maxX: config.arenaWidth - 1, maxY: config.arenaHeight - 1 },
     fighters: [red, blue],
     status: "fighting",
     winner: null,
@@ -67,17 +68,30 @@ function distance(a: Fighter, b: Fighter): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-function applyMove(fighter: Fighter, dir: Direction, arena: { width: number; height: number }): void {
-  if (fighter.isStunned) return; // stunned fighters can't move
+function applyMove(fighter: Fighter, dir: Direction, bounds: GameState["bounds"]): void {
+  if (fighter.isStunned) return;
   switch (dir) {
-    case "up": fighter.y = Math.max(0, fighter.y - 1); break;
-    case "down": fighter.y = Math.min(arena.height - 1, fighter.y + 1); break;
-    case "left": fighter.x = Math.max(0, fighter.x - 1); break;
-    case "right": fighter.x = Math.min(arena.width - 1, fighter.x + 1); break;
+    case "up": fighter.y = Math.max(bounds.minY, fighter.y - 1); break;
+    case "down": fighter.y = Math.min(bounds.maxY, fighter.y + 1); break;
+    case "left": fighter.x = Math.max(bounds.minX, fighter.x - 1); break;
+    case "right": fighter.x = Math.min(bounds.maxX, fighter.x + 1); break;
   }
   if (dir !== "none") {
     fighter.facing = dir;
   }
+}
+
+/** Shoot accuracy drops with distance */
+function shootHits(dist: number): boolean {
+  // dist 1: 100%, dist 2: 90%, dist 3: 75%, dist 4: 55%, dist 5: 35%
+  const accuracy = Math.max(0.2, 1.0 - (dist - 1) * 0.18);
+  return Math.random() < accuracy;
+}
+
+/** Clamp fighter position within bounds */
+function clampToBounds(fighter: Fighter, bounds: GameState["bounds"]): void {
+  fighter.x = Math.max(bounds.minX, Math.min(bounds.maxX, fighter.x));
+  fighter.y = Math.max(bounds.minY, Math.min(bounds.maxY, fighter.y));
 }
 
 function logWithPos(
@@ -99,6 +113,28 @@ export function resolveTick(
   next.tick++;
   const [red, blue] = next.fighters;
   const newLogs: LogEntry[] = [];
+
+  // Arena shrink — every 15 ticks, bounds close in by 1 on each side
+  // Starts at tick 30 to give time to warm up
+  if (next.tick >= 30 && next.tick % 15 === 0) {
+    const b = next.bounds;
+    const canShrinkX = b.maxX - b.minX > 3; // minimum 4 wide
+    const canShrinkY = b.maxY - b.minY > 2; // minimum 3 tall
+    if (canShrinkX || canShrinkY) {
+      if (canShrinkX) { b.minX++; b.maxX--; }
+      if (canShrinkY) { b.minY++; b.maxY--; }
+      newLogs.push({ tick: next.tick, fighter: "red", type: "system", message: "FIREWALL CLOSING IN!" });
+    }
+  }
+
+  // Damage fighters outside bounds (1 ICE per tick)
+  for (const [f, fId] of [[red, "red"], [blue, "blue"]] as [Fighter, "red" | "blue"][]) {
+    if (f.x < next.bounds.minX || f.x > next.bounds.maxX || f.y < next.bounds.minY || f.y > next.bounds.maxY) {
+      f.hp = Math.max(0, f.hp - 1);
+      newLogs.push(logWithPos(next.tick, fId, "hit", "FIREWALL -1!", f));
+      clampToBounds(f, next.bounds);
+    }
+  }
 
   // Reset per-tick states
   red.isInvulnerable = false;
@@ -130,8 +166,8 @@ export function resolveTick(
   }
 
   // Phase 1: Movement (stunned fighters can't move)
-  if (!redWasStunned) applyMove(red, redAction.move, next.arena);
-  if (!blueWasStunned) applyMove(blue, blueAction.move, next.arena);
+  if (!redWasStunned) applyMove(red, redAction.move, next.bounds);
+  if (!blueWasStunned) applyMove(blue, blueAction.move, next.bounds);
 
   if (redAction.move !== "none" && !redWasStunned) {
     newLogs.push(logWithPos(next.tick, "red", "move", redAction.move, red));
@@ -220,6 +256,12 @@ export function resolveTick(
             target.damageMultiplier = 2;
             newLogs.push(logWithPos(next.tick, actorId, "stun", "STUNNED!", actor));
             return;
+          }
+
+          // Accuracy drops with distance
+          if (!shootHits(dist)) {
+            newLogs.push(logWithPos(next.tick, actorId, "miss", "MISS!", actor));
+            break;
           }
 
           let dmg = Math.floor(1 * multi);
@@ -344,31 +386,26 @@ export function buildTickInput(state: GameState, fighterId: "red" | "blue"): str
       isStunned: enemy.isStunned,
     },
     arena: state.arena,
+    bounds: state.bounds,
     history: recentLogs,
   };
 
   return JSON.stringify(input);
 }
 
-export const SYSTEM_RULES = `You fight in a 10x8 grid arena. Each tick you choose 1 move and 1 action.
+export const SYSTEM_RULES = `You fight in a grid arena. Each tick: 1 move + 1 action. The arena SHRINKS over time — stay inside or take damage!
 
-COMBAT RULES:
-- punch: hits if distance <= 2, deals 2 damage
-- shoot: hits if distance 1-5, deals 1 damage
-- heavy: hits if distance <= 2, deals 3 damage, cooldown 3 ticks after use
-- block: halves melee damage, blocks shots completely
-- dodge: invulnerable this tick, cooldown 4 ticks
-- parry: if enemy attacks you THIS tick, they get STUNNED next tick and your next attack deals DOUBLE damage. If they don't attack, you waste your turn. Cooldown 5 ticks.
-- STUNNED = cannot move or act for 1 tick
+RULES:
+- punch: range 2, 2 dmg. Reliable melee.
+- shoot: range 1-5, 1 dmg. ACCURACY DROPS with distance (close=95%, far=35%). Miss wastes your turn.
+- heavy: range 2, 3 dmg, cooldown 3. Big damage up close.
+- block: halves melee, blocks shots.
+- dodge: invulnerable 1 tick, cooldown 4.
+- parry: if enemy attacks, they get STUNNED + your next hit is 2x. If they don't attack, wasted. Cooldown 5.
+- STUNNED = skip next tick.
+- FIREWALL: arena shrinks every 15 ticks after tick 30. Outside = 1 dmg/tick.
 
-TIPS:
-- Move up/down to flank, not just left/right
-- "distance" in the input tells you how far the enemy is
-- Use heavy when close for big damage, but it has a cooldown
-- Parry is high risk high reward — predict enemy attacks
+TIPS: Get close for reliable damage. Shoot misses at long range. Mix attacks to be unpredictable. Move vertically to flank.
 
-You must respond with exactly one JSON object. No other text.
-
-Example: {"move":"right","action":"punch"}
-Example: {"move":"up","action":"shoot"}
-Example: {"move":"none","action":"block"}`;
+Respond with exactly one JSON object. No markdown. No explanation. No backticks.
+{"move":"up","action":"punch"}`;

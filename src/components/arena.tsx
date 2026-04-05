@@ -3,8 +3,8 @@
 import { useRef, useEffect } from "react";
 import type { GameState, LogEntry } from "@/lib/types";
 
-const CELL_SIZE = 48;
-const PADDING = 4;
+const CELL_SIZE = 44;
+const PADDING = 3;
 
 interface ArenaProps {
   state: GameState | null;
@@ -91,7 +91,7 @@ export function Arena({ state }: ArenaProps) {
       text,
       color,
       life: 0,
-      maxLife: 40,
+      maxLife: 70,
       size,
     });
   }
@@ -127,9 +127,9 @@ export function Arena({ state }: ArenaProps) {
           // Offset angle so two shots don't overlap: red offsets up, blue offsets down
           const angleOffset = log.fighter === "red" ? -6 : 6;
           const sx = shooter.x * CELL_SIZE + CELL_SIZE / 2 + PADDING;
-          const sy = shooter.y * CELL_SIZE + CELL_SIZE / 2 + PADDING + 20 + angleOffset;
+          const sy = shooter.y * CELL_SIZE + CELL_SIZE / 2 + PADDING + 16 + angleOffset;
           const tx = target.x * CELL_SIZE + CELL_SIZE / 2 + PADDING;
-          const ty = target.y * CELL_SIZE + CELL_SIZE / 2 + PADDING + 20 + angleOffset;
+          const ty = target.y * CELL_SIZE + CELL_SIZE / 2 + PADDING + 16 + angleOffset;
 
           projectilesRef.current.push({
             sx, sy, tx, ty,
@@ -177,7 +177,7 @@ export function Arena({ state }: ArenaProps) {
     const arenaW = state?.arena.width ?? 10;
     const arenaH = state?.arena.height ?? 8;
     const width = arenaW * CELL_SIZE + PADDING * 2;
-    const height = arenaH * CELL_SIZE + PADDING * 2 + 30; // extra space for floating text
+    const height = arenaH * CELL_SIZE + PADDING * 2 + 24; // extra space for floating text
     canvas.width = width;
     canvas.height = height;
 
@@ -199,24 +199,57 @@ export function Arena({ state }: ArenaProps) {
       ctx.lineWidth = 0.5;
       for (let x = 0; x <= aw; x++) {
         ctx.beginPath();
-        ctx.moveTo(x * CELL_SIZE + PADDING, PADDING + 20);
-        ctx.lineTo(x * CELL_SIZE + PADDING, ah * CELL_SIZE + PADDING + 20);
+        ctx.moveTo(x * CELL_SIZE + PADDING, PADDING + 16);
+        ctx.lineTo(x * CELL_SIZE + PADDING, ah * CELL_SIZE + PADDING + 16);
         ctx.stroke();
       }
       for (let y = 0; y <= ah; y++) {
         ctx.beginPath();
-        ctx.moveTo(PADDING, y * CELL_SIZE + PADDING + 20);
-        ctx.lineTo(aw * CELL_SIZE + PADDING, y * CELL_SIZE + PADDING + 20);
+        ctx.moveTo(PADDING, y * CELL_SIZE + PADDING + 16);
+        ctx.lineTo(aw * CELL_SIZE + PADDING, y * CELL_SIZE + PADDING + 16);
         ctx.stroke();
       }
 
       if (state) {
+        // Draw firewall zone — only when bounds have shrunk
+        if (state.bounds) {
+          const b = state.bounds;
+          const hasShrunk = b.minX > 0 || b.minY > 0 || b.maxX < aw - 1 || b.maxY < ah - 1;
+
+          if (hasShrunk) {
+            const gridOffY = PADDING + 16;
+
+            // Dead zones (red tint outside bounds)
+            ctx.fillStyle = "#ff2d6a18";
+            if (b.minY > 0)
+              ctx.fillRect(PADDING, gridOffY, aw * CELL_SIZE, b.minY * CELL_SIZE);
+            if (b.maxY < ah - 1)
+              ctx.fillRect(PADDING, gridOffY + (b.maxY + 1) * CELL_SIZE, aw * CELL_SIZE, (ah - 1 - b.maxY) * CELL_SIZE);
+            if (b.minX > 0)
+              ctx.fillRect(PADDING, gridOffY, b.minX * CELL_SIZE, ah * CELL_SIZE);
+            if (b.maxX < aw - 1)
+              ctx.fillRect(PADDING + (b.maxX + 1) * CELL_SIZE, gridOffY, (aw - 1 - b.maxX) * CELL_SIZE, ah * CELL_SIZE);
+
+            // Firewall border — aligned to grid
+            ctx.strokeStyle = "#ff2d6a66";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.strokeRect(
+              PADDING + b.minX * CELL_SIZE,
+              gridOffY + b.minY * CELL_SIZE,
+              (b.maxX - b.minX + 1) * CELL_SIZE,
+              (b.maxY - b.minY + 1) * CELL_SIZE,
+            );
+            ctx.setLineDash([]);
+          }
+        }
+
         const [red, blue] = state.fighters;
 
         for (const fighter of [red, blue]) {
           const color = FACTION_COLORS[fighter.faction] || "#ffffff";
           const px = fighter.x * CELL_SIZE + PADDING;
-          const py = fighter.y * CELL_SIZE + PADDING + 20;
+          const py = fighter.y * CELL_SIZE + PADDING + 16;
           const cx = px + CELL_SIZE / 2;
           const cy = py + CELL_SIZE / 2;
 
@@ -413,7 +446,7 @@ export function Arena({ state }: ArenaProps) {
       for (let i = texts.length - 1; i >= 0; i--) {
         const t = texts[i];
         t.life++;
-        t.y -= 0.8; // float upward
+        t.y -= 0.4; // float upward slowly
 
         const alpha = Math.max(0, 1 - t.life / t.maxLife);
         const scale = Math.min(1, t.life / 5); // pop in
@@ -463,8 +496,8 @@ export function Arena({ state }: ArenaProps) {
   }, [state]);
 
   // Fixed dimensions to avoid hydration mismatch (arena is always 10x8)
-  const CANVAS_W = 10 * CELL_SIZE + PADDING * 2;  // 488
-  const CANVAS_H = 8 * CELL_SIZE + PADDING * 2 + 30; // 422
+  const CANVAS_W = 10 * 44 + 3 * 2;  // 446
+  const CANVAS_H = 8 * 44 + 3 * 2 + 24; // 382
 
   return (
     <canvas

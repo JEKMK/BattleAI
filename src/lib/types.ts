@@ -42,6 +42,8 @@ export interface Fighter {
 export interface GameState {
   tick: number;
   arena: { width: number; height: number };
+  /** Active playable bounds — shrinks over time */
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
   fighters: [Fighter, Fighter];
   status: "fighting" | "ko" | "timeout";
   winner: "red" | "blue" | "draw" | null;

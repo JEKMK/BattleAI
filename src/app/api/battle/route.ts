@@ -1,4 +1,6 @@
 import { generateText, gateway } from "ai";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 import {
   type Faction,
   type FighterAction,
@@ -264,6 +266,33 @@ export async function POST(req: Request) {
         actionLog,
       });
       controller.enqueue(encoder.encode(statsLine + "\n"));
+
+      // Save battle log to disk
+      try {
+        const logsDir = path.join(process.cwd(), "logs");
+        await mkdir(logsDir, { recursive: true });
+        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `${ts}_${playerFaction}-vs-${botFaction}_${botType}.json`;
+        const battleLog = {
+          timestamp: new Date().toISOString(),
+          config: { playerFaction, botFaction, botType, playerPrompt, botPrompt: bot.prompt },
+          finalState: state,
+          usage: {
+            totalCalls: usage.totalCalls,
+            totalInputTokens: usage.totalInputTokens,
+            totalOutputTokens: usage.totalOutputTokens,
+            costUSD: costs.total,
+            perModel: Object.entries(usage.perFaction).map(([model, stats]) => ({
+              model, ...stats, costUSD: costs.perModel[model] || 0,
+            })),
+          },
+          analytics: { red: analytics.red, blue: analytics.blue },
+          actionLog,
+        };
+        await writeFile(path.join(logsDir, filename), JSON.stringify(battleLog, null, 2));
+      } catch (e) {
+        console.error("Failed to save battle log:", e);
+      }
 
       controller.close();
     },
