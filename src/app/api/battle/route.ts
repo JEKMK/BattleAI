@@ -179,11 +179,18 @@ export async function POST(req: Request) {
     playerFaction,
     botType = "balanced",
     botFaction = "openai",
+    // Gauntlet overrides
+    botPrompt: customBotPrompt,
+    botName: customBotName,
+    botHp: customBotHp,
   }: {
     playerPrompt: string;
     playerFaction: Faction;
     botType: string;
     botFaction: Faction;
+    botPrompt?: string;
+    botName?: string;
+    botHp?: number;
   } = body;
 
   if (!playerPrompt || !playerFaction) {
@@ -191,12 +198,21 @@ export async function POST(req: Request) {
   }
 
   const bot = BOT_PROMPTS[botType] || BOT_PROMPTS.balanced;
+  const actualBotPrompt = customBotPrompt || bot.prompt;
+  const actualBotName = customBotName || bot.name;
+
   let state = createInitialState(DEFAULT_CONFIG);
 
   state.fighters[0].name = "PLAYER";
   state.fighters[0].faction = playerFaction;
-  state.fighters[1].name = bot.name;
+  state.fighters[1].name = actualBotName;
   state.fighters[1].faction = botFaction;
+
+  // Custom HP for gauntlet levels
+  if (customBotHp) {
+    state.fighters[1].hp = customBotHp;
+    state.fighters[1].maxHp = customBotHp;
+  }
 
   const usage: UsageStats = {
     totalInputTokens: 0,
@@ -218,7 +234,7 @@ export async function POST(req: Request) {
 
         const [redAction, blueAction] = await Promise.all([
           getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog),
-          getAIAction(bot.prompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog),
+          getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog),
         ]);
 
         state = resolveTick(state, redAction, blueAction);
@@ -275,7 +291,7 @@ export async function POST(req: Request) {
         const filename = `${ts}_${playerFaction}-vs-${botFaction}_${botType}.json`;
         const battleLog = {
           timestamp: new Date().toISOString(),
-          config: { playerFaction, botFaction, botType, playerPrompt, botPrompt: bot.prompt },
+          config: { playerFaction, botFaction, botType, playerPrompt, botPrompt: actualBotPrompt },
           finalState: state,
           usage: {
             totalCalls: usage.totalCalls,
