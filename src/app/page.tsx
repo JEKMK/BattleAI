@@ -415,7 +415,7 @@ export default function Home() {
   return (
     <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0">
+      <header className={`border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0 transition-all duration-500 ${showOnboarding ? "invisible" : ""} ${spotlightPrompt ? "opacity-20" : ""}`}>
         <div className="flex items-center gap-3">
           <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
@@ -511,23 +511,11 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Spotlight overlay — dims everything except prompt */}
-        <AnimatePresence>
-          {spotlightPrompt && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="absolute inset-0 z-20 bg-black/70 pointer-events-none"
-            />
-          )}
-        </AnimatePresence>
 
         {/* Left Panel */}
-        <div key={`left-${flickerKey}`} className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto" style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
+        <div key={`left-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto ${showOnboarding ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
-          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel ring-1 ring-cyan/30" : ""}`}>
+          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "ring-1 ring-cyan/30 bg-bg-panel" : ""}`}>
             <div className="flex items-center justify-between mb-2">
               <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan flex items-center gap-1.5">
                 &gt; System Prompt_
@@ -562,7 +550,7 @@ export default function Home() {
           </div>
 
           {/* Faction */}
-          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel" : ""}`}>
+          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
             <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
               Zaibatsu
               <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Choose which AI corporation powers your construct. Each zaibatsu (Anthropic, Google, OpenAI) thinks differently — some are fast, some are creative, some are precise.">?</span>
@@ -584,7 +572,7 @@ export default function Home() {
 
           {/* Gauntlet levels or Free config */}
           {showGauntlet ? (
-            <div className="p-3 border-b border-border flex-1 overflow-y-auto">
+            <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
               <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 ICE Breaker Gauntlet
                 <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="10 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities. Win to advance. Nobody's cracked them all.">?</span>
@@ -665,7 +653,7 @@ export default function Home() {
           )}
 
           {/* Action buttons */}
-          <div className={`p-3 space-y-2 shrink-0 transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel" : ""}`}>
+          <div className={`p-3 space-y-2 shrink-0 transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
             {showGauntlet ? (
               <>
                 <motion.button
@@ -706,7 +694,7 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative ${gameState ? "justify-start pt-4" : "justify-center"}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
+        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative transition-all duration-500 ${gameState ? "justify-start pt-4" : "justify-center"} ${spotlightPrompt ? "opacity-10" : ""} ${showOnboarding ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
 
           {/* Gauntlet victory score */}
           {showGauntlet && isOver && lastScore > 0 && (
@@ -897,7 +885,7 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Intrusion Log */}
-        <div key={`right-${flickerKey}`} className="w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden" style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
+        <div key={`right-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${showOnboarding ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
             <CombatLog logs={gameState?.log ?? []} />
           </div>
