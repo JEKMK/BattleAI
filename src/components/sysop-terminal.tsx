@@ -103,46 +103,42 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
               </div>
             ))}
 
-            {/* Blinking cursor */}
-            {!isDone && (
-              <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5" />
-            )}
-
-            {/* Prompt cursor when done */}
+            {/* CTA when done */}
             {isDone && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="mt-4 flex items-center gap-1"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="mt-6 flex flex-col items-center gap-3"
               >
-                <span className="text-neon-green">&gt;</span>
-                <span className="w-2 h-4 bg-neon-green/80 animate-pulse" />
+                <motion.button
+                  onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-10 py-2.5 border-2 border-neon-green text-neon-green font-mono font-bold text-sm uppercase tracking-[0.4em] rounded-sm bg-neon-green/5 hover:bg-neon-green/15 transition-all"
+                  style={{ boxShadow: "0 0 20px rgba(57,255,20,0.2), 0 0 40px rgba(57,255,20,0.1)" }}
+                >
+                  ENTER THE MATRIX
+                </motion.button>
+                <a
+                  href="/lore"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[9px] font-mono text-amber/40 hover:text-amber transition-colors"
+                >
+                  [FULL TRANSMISSION — READ THE LORE]
+                </a>
               </motion.div>
+            )}
+
+            {/* Blinking cursor while typing */}
+            {!isDone && (
+              <div className="mt-2">
+                <span className="text-neon-green">&gt;</span>
+                <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5" />
+              </div>
             )}
           </div>
         </div>
-
-        {/* Below terminal — hints */}
-        {isDone && (
-          <motion.div
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="mt-4 flex items-center justify-between px-1"
-          >
-            <span className="text-text-dim text-[9px] font-mono">
-              ↓ Write your neural template below. Then FIGHT.
-            </span>
-            <a
-              href="/lore"
-              onClick={(e) => e.stopPropagation()}
-              className="text-[9px] font-mono text-amber/50 hover:text-amber transition-colors"
-            >
-              [FULL TRANSMISSION]
-            </a>
-          </motion.div>
-        )}
       </div>
     </motion.div>
   );

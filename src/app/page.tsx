@@ -452,14 +452,33 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 flex gap-0 overflow-hidden">
+      <main className="flex-1 flex gap-0 overflow-hidden relative">
+        {/* Fullscreen SYSOP Terminal — first visit onboarding */}
+        <AnimatePresence>
+          {showOnboarding && !gameState && bootPhase === "idle" && (
+            <motion.div
+              key="sysop-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
+              className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
+            >
+              <SysopTerminal onDismiss={() => {
+                setShowOnboarding(false);
+                localStorage.setItem("battleai_onboarding_done", "1");
+              }} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Left Panel */}
         <div className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto">
           {/* Prompt */}
           <div className="p-3 border-b border-border">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan">
+              <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan flex items-center gap-1.5">
                 &gt; Construct Code_
+                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Your combat prompt — tell your AI construct how to fight: when to attack, dodge, block, or retreat. The better your instructions, the smarter it fights. Limited by RAM.">?</span>
               </label>
               <span className={`text-[9px] font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
                 {prompt.length}/{showGauntlet ? gauntlet.ramUnlocked : "∞"} RAM
@@ -481,7 +500,10 @@ export default function Home() {
 
           {/* Faction */}
           <div className="p-3 border-b border-border">
-            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-1.5">Zaibatsu</label>
+            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              Zaibatsu
+              <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Choose which AI corporation powers your construct. Each zaibatsu (Anthropic, Google, OpenAI) thinks differently — some are fast, some are creative, some are precise.">?</span>
+            </label>
             <div className="grid grid-cols-3 gap-1.5">
               {FACTIONS.map((f) => {
                 const meta = FACTION_META[f];
@@ -500,7 +522,10 @@ export default function Home() {
           {/* Gauntlet levels or Free config */}
           {showGauntlet ? (
             <div className="p-3 border-b border-border flex-1 overflow-y-auto">
-              <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-2">ICE Breaker Gauntlet</label>
+              <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                ICE Breaker Gauntlet
+                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="10 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities. Win to advance. Nobody's cracked them all.">?</span>
+              </label>
               <div className="space-y-1">
                 {GAUNTLET_LEVELS.map((lvl, i) => {
                   const isCurrent = i === gauntlet.currentLevel;
@@ -619,16 +644,6 @@ export default function Home() {
 
         {/* Center — Arena */}
         <div className="flex-1 flex flex-col items-center justify-center gap-2 min-w-0 p-3 overflow-y-auto relative">
-          {/* SYSOP Terminal — first visit onboarding */}
-          <AnimatePresence>
-            {showOnboarding && !gameState && bootPhase === "idle" && (
-              <SysopTerminal onDismiss={() => {
-                setShowOnboarding(false);
-                localStorage.setItem("battleai_onboarding_done", "1");
-              }} />
-            )}
-          </AnimatePresence>
-
           {/* Boot sequence overlay */}
           <AnimatePresence>
             {bootPhase === "blackout" && (
