@@ -160,7 +160,7 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
 
 export default function Home() {
   const [prompt, setPrompt] = useState(
-    "Move toward the enemy and attack.",
+    "Move toward the enemy and attack. (rewrite me — this prompt is terrible)",
   );
   const [faction, setFaction] = useState<Faction>("anthropic");
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -179,6 +179,7 @@ export default function Home() {
   const [gauntletLevelPlayed, setGauntletLevelPlayed] = useState<number | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [spotlightPrompt, setSpotlightPrompt] = useState(false); // dims everything except prompt
   const [bootPhase, setBootPhase] = useState<"idle" | "blackout" | "boot" | "flicker" | "done">("idle");
   const [hasBooted, setHasBooted] = useState(false);
 
@@ -348,11 +349,12 @@ export default function Home() {
 
   // Boot sequence wrapper
   const startBattle = useCallback((overrides?: Parameters<typeof startBattleRaw>[0]) => {
-    // Dismiss onboarding
+    // Dismiss onboarding + spotlight
     if (showOnboarding) {
       setShowOnboarding(false);
       localStorage.setItem("battleai_onboarding_done", "1");
     }
+    setSpotlightPrompt(false);
 
     pendingBattleRef.current = overrides;
 
@@ -465,19 +467,33 @@ export default function Home() {
             >
               <SysopTerminal onDismiss={() => {
                 setShowOnboarding(false);
+                setSpotlightPrompt(true);
                 localStorage.setItem("battleai_onboarding_done", "1");
               }} />
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Spotlight overlay — dims everything except prompt */}
+        <AnimatePresence>
+          {spotlightPrompt && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              className="absolute inset-0 z-20 bg-black/70 pointer-events-none"
+            />
+          )}
+        </AnimatePresence>
+
         {/* Left Panel */}
         <div className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto">
           {/* Prompt */}
-          <div className="p-3 border-b border-border">
+          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel ring-1 ring-cyan/30" : ""}`}>
             <div className="flex items-center justify-between mb-2">
               <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan flex items-center gap-1.5">
-                &gt; Construct Code_
+                &gt; System Prompt_
                 <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Your combat prompt — tell your AI construct how to fight: when to attack, dodge, block, or retreat. The better your instructions, the smarter it fights. Limited by RAM.">?</span>
               </label>
               <span className={`text-[9px] font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
@@ -495,11 +511,21 @@ export default function Home() {
               placeholder="// Define your construct..."
               disabled={isFighting}
               spellCheck={false}
+              autoFocus={spotlightPrompt}
             />
+            {spotlightPrompt && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-cyan/60 text-[9px] font-mono mt-1.5 animate-pulse-glow"
+              >
+                ↑ Rewrite this. Your prompt is your only weapon. Then hit JACK IN below.
+              </motion.p>
+            )}
           </div>
 
           {/* Faction */}
-          <div className="p-3 border-b border-border">
+          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel" : ""}`}>
             <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
               Zaibatsu
               <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Choose which AI corporation powers your construct. Each zaibatsu (Anthropic, Google, OpenAI) thinks differently — some are fast, some are creative, some are precise.">?</span>
@@ -602,7 +628,7 @@ export default function Home() {
           )}
 
           {/* Action buttons */}
-          <div className="p-3 space-y-2 shrink-0">
+          <div className={`p-3 space-y-2 shrink-0 transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel" : ""}`}>
             {showGauntlet ? (
               <>
                 <motion.button
