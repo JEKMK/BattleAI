@@ -182,6 +182,7 @@ export default function Home() {
   const [spotlightPrompt, setSpotlightPrompt] = useState(false); // dims everything except prompt
   const [bootPhase, setBootPhase] = useState<"idle" | "blackout" | "boot" | "flicker" | "done">("idle");
   const [hasBooted, setHasBooted] = useState(false);
+  const [flickerKey, setFlickerKey] = useState(0); // increment to re-trigger CSS animations
   const [runnerName, setRunnerName] = useState<string | null>(null);
 
   // Load gauntlet from localStorage + hydrate
@@ -343,39 +344,43 @@ export default function Home() {
 
   // Pending battle overrides — stored so boot sequence can trigger battle after completing
   const pendingBattleRef = useRef<Parameters<typeof startBattleRaw>[0] | undefined>(undefined);
+  const bootPurposeRef = useRef<"onboarding" | "battle">("battle");
 
   const finishBoot = useCallback(() => {
     setBootPhase("done");
+    setFlickerKey((k) => k + 1); // trigger CSS flicker-in on panels
     if (!hasBooted) {
       setHasBooted(true);
       localStorage.setItem("battleai_first_boot", "1");
     }
-    startBattleRaw(pendingBattleRef.current);
+    if (bootPurposeRef.current === "battle") {
+      startBattleRaw(pendingBattleRef.current);
+    } else {
+      // Onboarding boot — reveal UI with spotlight
+      setSpotlightPrompt(true);
+    }
   }, [hasBooted, startBattleRaw]);
 
-  // Boot sequence wrapper
+  // Triggered by "ENTER THE MATRIX" — boot sequence to reveal UI
+  const enterMatrix = useCallback((name: string) => {
+    setShowOnboarding(false);
+    setRunnerName(name);
+    localStorage.setItem("battleai_onboarding_done", "1");
+    bootPurposeRef.current = "onboarding";
+    setBootPhase("blackout");
+    setTimeout(() => setBootPhase("boot"), 500);
+  }, []);
+
+  // Boot sequence wrapper for battles
   const startBattle = useCallback((overrides?: Parameters<typeof startBattleRaw>[0]) => {
-    // Dismiss onboarding + spotlight
-    if (showOnboarding) {
-      setShowOnboarding(false);
-      localStorage.setItem("battleai_onboarding_done", "1");
-    }
     setSpotlightPrompt(false);
-
     pendingBattleRef.current = overrides;
+    bootPurposeRef.current = "battle";
 
-    // First boot — full sequence: blackout → boot lines → flicker → battle
-    if (!hasBooted) {
-      setBootPhase("blackout");
-      setTimeout(() => setBootPhase("boot"), 500);
-      // BootLines onDone → setBootPhase("flicker") (wired in JSX)
-      // flicker effect → useEffect below triggers finishBoot after delay
-      return;
-    }
-
-    // Subsequent battles — short flicker then go
+    // First battle after onboarding boot — short flicker only
+    // Full boot already happened at ENTER THE MATRIX
     setBootPhase("flicker");
-  }, [showOnboarding, hasBooted]);
+  }, []);
 
   // When flicker phase starts, wait for animation then finish boot
   useEffect(() => {
@@ -464,6 +469,33 @@ export default function Home() {
       </header>
 
       <main className="flex-1 flex gap-0 overflow-hidden relative">
+        {/* Boot sequence overlay — covers entire main area */}
+        <AnimatePresence>
+          {bootPhase === "blackout" && (
+            <motion.div
+              key="blackout"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-40 bg-black flex items-center justify-center"
+            >
+              <span className="text-neon-green/30 text-[10px] font-mono animate-pulse">JACKING IN...</span>
+            </motion.div>
+          )}
+          {bootPhase === "boot" && (
+            <motion.div
+              key="boot"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-[10px] text-neon-green/60 gap-1"
+            >
+              <BootLines faction={faction} level={currentLevel?.name} runner={runnerName} onDone={() => setBootPhase("flicker")} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Fullscreen SYSOP Terminal — first visit onboarding */}
         <AnimatePresence>
           {showOnboarding && !gameState && bootPhase === "idle" && (
@@ -474,12 +506,7 @@ export default function Home() {
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
             >
-              <SysopTerminal onDismiss={(name) => {
-                setShowOnboarding(false);
-                setSpotlightPrompt(true);
-                setRunnerName(name);
-                localStorage.setItem("battleai_onboarding_done", "1");
-              }} />
+              <SysopTerminal onDismiss={enterMatrix} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -498,7 +525,7 @@ export default function Home() {
         </AnimatePresence>
 
         {/* Left Panel */}
-        <div className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto">
+        <div key={`left-${flickerKey}`} className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto" style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
           <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "relative z-30 bg-bg-panel ring-1 ring-cyan/30" : ""}`}>
             <div className="flex items-center justify-between mb-2">
@@ -679,33 +706,7 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative ${gameState ? "justify-start pt-4" : "justify-center"}`}>
-          {/* Boot sequence overlay */}
-          <AnimatePresence>
-            {bootPhase === "blackout" && (
-              <motion.div
-                key="blackout"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0 z-40 bg-black flex items-center justify-center"
-              >
-                <span className="text-neon-green/30 text-[10px] font-mono animate-pulse">JACKING IN...</span>
-              </motion.div>
-            )}
-            {bootPhase === "boot" && (
-              <motion.div
-                key="boot"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-[10px] text-neon-green/60 gap-1"
-              >
-                <BootLines faction={faction} level={currentLevel?.name} runner={runnerName} onDone={() => setBootPhase("flicker")} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative ${gameState ? "justify-start pt-4" : "justify-center"}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
 
           {/* Gauntlet victory score */}
           {showGauntlet && isOver && lastScore > 0 && (
@@ -896,7 +897,7 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Intrusion Log */}
-        <div className="w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden">
+        <div key={`right-${flickerKey}`} className="w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden" style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
             <CombatLog logs={gameState?.log ?? []} />
           </div>
