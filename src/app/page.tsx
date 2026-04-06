@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
-import { Onboarding } from "@/components/onboarding";
+import { SysopTerminal } from "@/components/sysop-terminal";
+import { BootLines } from "@/components/boot-sequence";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, calculateScore, type GauntletState } from "@/lib/gauntlet";
@@ -177,6 +178,9 @@ export default function Home() {
   const [lastScore, setLastScore] = useState(0);
   const [gauntletLevelPlayed, setGauntletLevelPlayed] = useState<number | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<number | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [bootPhase, setBootPhase] = useState<"idle" | "blackout" | "boot" | "flicker" | "done">("idle");
+  const [hasBooted, setHasBooted] = useState(false);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -184,6 +188,12 @@ export default function Home() {
     if (saved) {
       try { setGauntlet(JSON.parse(saved)); } catch { /* ignore */ }
     }
+    // Show onboarding if first visit
+    const onboardingDone = localStorage.getItem("battleai_onboarding_done");
+    if (!onboardingDone) setShowOnboarding(true);
+    // Check if first boot already happened
+    const booted = localStorage.getItem("battleai_first_boot");
+    if (booted) setHasBooted(true);
     setShowGauntlet(true);
     setHydrated(true);
   }, []);
@@ -244,7 +254,7 @@ export default function Home() {
     });
   }, [isFighting, gameState, gauntletLevelPlayed]);
 
-  const startBattle = useCallback(async (overrides?: {
+  const startBattleRaw = useCallback(async (overrides?: {
     botPrompt: string; botName: string; botFaction: Faction; botHp: number;
   }) => {
     if (isFighting) {
@@ -324,6 +334,49 @@ export default function Home() {
     }
   }, [prompt, faction, isFighting]);
 
+  // Pending battle overrides — stored so boot sequence can trigger battle after completing
+  const pendingBattleRef = useRef<Parameters<typeof startBattleRaw>[0] | undefined>(undefined);
+
+  const finishBoot = useCallback(() => {
+    setBootPhase("done");
+    if (!hasBooted) {
+      setHasBooted(true);
+      localStorage.setItem("battleai_first_boot", "1");
+    }
+    startBattleRaw(pendingBattleRef.current);
+  }, [hasBooted, startBattleRaw]);
+
+  // Boot sequence wrapper
+  const startBattle = useCallback((overrides?: Parameters<typeof startBattleRaw>[0]) => {
+    // Dismiss onboarding
+    if (showOnboarding) {
+      setShowOnboarding(false);
+      localStorage.setItem("battleai_onboarding_done", "1");
+    }
+
+    pendingBattleRef.current = overrides;
+
+    // First boot — full sequence: blackout → boot lines → flicker → battle
+    if (!hasBooted) {
+      setBootPhase("blackout");
+      setTimeout(() => setBootPhase("boot"), 500);
+      // BootLines onDone → setBootPhase("flicker") (wired in JSX)
+      // flicker effect → useEffect below triggers finishBoot after delay
+      return;
+    }
+
+    // Subsequent battles — short flicker then go
+    setBootPhase("flicker");
+  }, [showOnboarding, hasBooted]);
+
+  // When flicker phase starts, wait for animation then finish boot
+  useEffect(() => {
+    if (bootPhase !== "flicker") return;
+    const delay = hasBooted ? 400 : 1200;
+    const timer = setTimeout(finishBoot, delay);
+    return () => clearTimeout(timer);
+  }, [bootPhase, hasBooted, finishBoot]);
+
   const startGauntletBattle = useCallback(() => {
     if (!currentLevel) return;
     setGauntletLevelPlayed(gauntlet.currentLevel);
@@ -348,7 +401,6 @@ export default function Home() {
 
   return (
     <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
-      <Onboarding />
       {/* Header */}
       <header className="border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -566,7 +618,44 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 min-w-0 p-3 overflow-y-auto">
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 min-w-0 p-3 overflow-y-auto relative">
+          {/* SYSOP Terminal — first visit onboarding */}
+          <AnimatePresence>
+            {showOnboarding && !gameState && bootPhase === "idle" && (
+              <SysopTerminal onDismiss={() => {
+                setShowOnboarding(false);
+                localStorage.setItem("battleai_onboarding_done", "1");
+              }} />
+            )}
+          </AnimatePresence>
+
+          {/* Boot sequence overlay */}
+          <AnimatePresence>
+            {bootPhase === "blackout" && (
+              <motion.div
+                key="blackout"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 z-40 bg-black flex items-center justify-center"
+              >
+                <span className="text-neon-green/30 text-[10px] font-mono animate-pulse">JACKING IN...</span>
+              </motion.div>
+            )}
+            {bootPhase === "boot" && (
+              <motion.div
+                key="boot"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-[10px] text-neon-green/60 gap-1"
+              >
+                <BootLines faction={faction} level={currentLevel?.name} onDone={() => setBootPhase("flicker")} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Gauntlet victory score */}
           {showGauntlet && isOver && lastScore > 0 && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}

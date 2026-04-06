@@ -192,3 +192,32 @@ body::after {
   pointer-events: none;
   z-index: 11;
 }
+
+/* Boot flicker-in animation (2advanced style) */
+@keyframes flicker-in {
+  0% { opacity: 0; }
+  10% { opacity: 0.3; }
+  15% { opacity: 0; }
+  30% { opacity: 0.7; }
+  35% { opacity: 0; }
+  50% { opacity: 0.5; }
+  55% { opacity: 0.9; }
+  60% { opacity: 0.4; }
+  80% { opacity: 1; }
+  85% { opacity: 0.8; }
+  100% { opacity: 1; }
+}
+
+@keyframes glow-surge {
+  0% { box-shadow: 0 0 0px transparent; }
+  50% { box-shadow: 0 0 20px rgba(0, 240, 255, 0.3), 0 0 40px rgba(0, 240, 255, 0.1); }
+  100% { box-shadow: 0 0 0px transparent; }
+}
+
+.boot-flicker-in {
+  animation: flicker-in 0.5s ease-out forwards;
+}
+
+.boot-glow-surge {
+  animation: glow-surge 0.8s ease-out;
+}
