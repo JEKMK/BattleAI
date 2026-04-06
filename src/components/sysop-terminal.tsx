@@ -115,12 +115,15 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
     >
       <div className="w-full max-w-lg px-4">
         <div className="bg-bg-deep border border-neon-green/20 rounded-sm overflow-hidden relative crt-terminal"
-          style={{ boxShadow: "0 0 30px rgba(57,255,20,0.05), inset 0 0 60px rgba(0,0,0,0.5)" }}>
+          style={{ animation: "flicker-in 0.5s ease-out forwards, glow-surge-green 1s ease-out 0.5s forwards" }}>
 
           {/* Scanlines overlay */}
           <div className="absolute inset-0 pointer-events-none z-10" style={{
             background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(57,255,20,0.015) 2px, rgba(57,255,20,0.015) 4px)",
           }} />
+
+          {/* Horizontal scanline sweep on boot */}
+          <div className="crt-scanline-bar" style={{ animationDuration: "3s" }} />
 
           {/* Header */}
           <div className="border-b border-neon-green/10 px-4 py-1.5 flex items-center justify-between shrink-0">
