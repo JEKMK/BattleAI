@@ -154,3 +154,41 @@ body::after {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* CRT terminal effect */
+@keyframes crt-flicker {
+  0% { opacity: 1; }
+  5% { opacity: 0.95; }
+  10% { opacity: 1; }
+  15% { opacity: 0.98; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  85% { opacity: 0.96; }
+  86% { opacity: 1; }
+  91% { opacity: 0.93; }
+  92% { opacity: 1; }
+}
+
+.crt-terminal {
+  animation: crt-flicker 4s infinite;
+  box-shadow:
+    0 0 2px rgba(0, 240, 255, 0.3),
+    0 0 10px rgba(0, 240, 255, 0.1),
+    inset 0 0 30px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes scanline-move {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.crt-scanline-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(transparent, rgba(0, 240, 255, 0.04), transparent);
+  animation: scanline-move 6s linear infinite;
+  pointer-events: none;
+  z-index: 11;
+}

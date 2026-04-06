@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { CombatLog } from "@/components/combat-log";
+import { SysopReport } from "@/components/sysop-report";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, calculateScore, type GauntletState } from "@/lib/gauntlet";
@@ -355,6 +356,10 @@ export default function Home() {
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
           <div className="flex gap-1">
+            <a href="/lore"
+              className="text-[9px] font-mono px-2 py-0.5 rounded-sm border border-amber/40 text-amber hover:bg-amber/10 transition-all animate-pulse-glow">
+              1 NEW MSG
+            </a>
             <button onClick={() => setShowGauntlet(true)}
               className={`text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-all ${showGauntlet ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               GAUNTLET
@@ -481,14 +486,28 @@ export default function Home() {
                           )}
                         </div>
                       </button>
-                      {isExpanded && winEntry?.crackedPrompt && (
-                        <div className="mx-1 mt-0.5 mb-1 bg-bg-deep border border-magenta/20 rounded-sm p-1.5">
-                          <div className="flex justify-between items-center mb-0.5">
-                            <span className="text-magenta text-[8px] font-mono animate-flicker">&gt; cracked_</span>
-                            <button onClick={() => navigator.clipboard.writeText(winEntry.crackedPrompt!)}
-                              className="text-[7px] font-mono text-text-dim hover:text-cyan">COPY</button>
-                          </div>
-                          <p className="text-neon-green/70 text-[8px] font-mono leading-relaxed">{winEntry.crackedPrompt}</p>
+                      {isExpanded && (
+                        <div className="mx-1 mt-0.5 mb-1 space-y-1">
+                          {winEntry?.sysopReport && (
+                            <div className="bg-bg-deep border border-cyan/20 rounded-sm p-1.5">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <span className="text-cyan text-[8px] font-mono">&gt; sysop_report</span>
+                                <button onClick={() => navigator.clipboard.writeText(winEntry.sysopReport!)}
+                                  className="text-[7px] font-mono text-text-dim hover:text-cyan">COPY</button>
+                              </div>
+                              <p className="text-text-primary/80 text-[8px] font-mono leading-relaxed">{winEntry.sysopReport}</p>
+                            </div>
+                          )}
+                          {winEntry?.crackedPrompt && (
+                            <div className="bg-bg-deep border border-magenta/20 rounded-sm p-1.5">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <span className="text-magenta text-[8px] font-mono animate-flicker">&gt; cracked_code</span>
+                                <button onClick={() => navigator.clipboard.writeText(winEntry.crackedPrompt!)}
+                                  className="text-[7px] font-mono text-text-dim hover:text-cyan">COPY</button>
+                              </div>
+                              <p className="text-neon-green/70 text-[8px] font-mono leading-relaxed">{winEntry.crackedPrompt}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -712,6 +731,17 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          {/* SYSOP Report */}
+          <SysopReport gameState={gameState} usage={usage} isOver={isOver} onReport={(report) => {
+            // Save SYSOP report to last gauntlet history entry
+            setGauntlet((prev) => {
+              if (prev.history.length === 0) return prev;
+              const next = { ...prev, history: [...prev.history] };
+              next.history[next.history.length - 1] = { ...next.history[next.history.length - 1], sysopReport: report };
+              return next;
+            });
+          }} />
         </div>
 
         {/* Right Panel — Intrusion Log */}

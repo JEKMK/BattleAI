@@ -231,7 +231,7 @@ export function Arena({ state }: ArenaProps) {
       const ah = state?.arena.height ?? 8;
 
       // Grid
-      ctx.strokeStyle = "#1a1a2822";
+      ctx.strokeStyle = "#1e1e2e55";
       ctx.lineWidth = 0.5;
       for (let x = 0; x <= aw; x++) {
         ctx.beginPath();
@@ -244,6 +244,14 @@ export function Arena({ state }: ArenaProps) {
         ctx.moveTo(PADDING, y * CELL_SIZE + PADDING + 16);
         ctx.lineTo(aw * CELL_SIZE + PADDING, y * CELL_SIZE + PADDING + 16);
         ctx.stroke();
+      }
+
+      // Grid intersection dots
+      ctx.fillStyle = "#2a2a3e66";
+      for (let x = 0; x <= aw; x++) {
+        for (let y = 0; y <= ah; y++) {
+          ctx.fillRect(x * CELL_SIZE + PADDING - 0.5, y * CELL_SIZE + PADDING + 16 - 0.5, 1, 1);
+        }
       }
 
       if (state) {

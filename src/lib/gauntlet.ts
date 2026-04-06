@@ -19,7 +19,7 @@ export interface GauntletState {
   losses: number;
   draws: number;
   unlockedActions: string[];
-  history: { level: number; won: boolean; ticks: number; hpLeft: number; cost: number; crackedPrompt?: string }[];
+  history: { level: number; won: boolean; ticks: number; hpLeft: number; cost: number; crackedPrompt?: string; sysopReport?: string }[];
 }
 
 export const INITIAL_GAUNTLET: GauntletState = {
@@ -49,7 +49,7 @@ export const GAUNTLET_LEVELS: GauntletLevel[] = [
     name: "SCRIPT_KIDDIE",
     title: "Level 1 — Script Kiddie",
     faction: "openai",
-    hp: 6,
+    hp: 8,
     tokenReward: 50,
     prompt: "Move toward the enemy. Punch when close. That is all you know.",
   },
@@ -58,9 +58,9 @@ export const GAUNTLET_LEVELS: GauntletLevel[] = [
     name: "PROXY_BOT",
     title: "Level 2 — Proxy Bot",
     faction: "google",
-    hp: 8,
+    hp: 10,
     tokenReward: 50,
-    prompt: "Move toward enemy and punch. Sometimes shoot when far away. You are a simple bot.",
+    prompt: "Keep distance from enemy. Shoot from far away. If enemy gets close, block then move away. Never stay adjacent to enemy. Retreat and shoot is your strategy.",
   },
   {
     level: 3,
@@ -69,25 +69,25 @@ export const GAUNTLET_LEVELS: GauntletLevel[] = [
     faction: "anthropic",
     hp: 10,
     tokenReward: 75,
-    prompt: "Keep medium distance. Shoot when far, punch when close. Move vertically to avoid shots. Basic tactical awareness.",
+    prompt: "If enemy moves toward you, stand still and punch for full damage. If enemy is far, shoot. If enemy has punched 2 times in a row, use block next turn. Move vertically to avoid being predictable.",
   },
   {
     level: 4,
     name: "ICE_SHARD",
     title: "Level 4 — ICE Shard",
     faction: "openai",
-    hp: 10,
+    hp: 12,
     tokenReward: 75,
-    prompt: "Defensive fighter. Block frequently. Shoot from distance. When enemy gets close, dodge and reposition. Prioritize survival over damage.",
+    prompt: "You are a counter-puncher. Never attack first. Wait for enemy to get close, then block their hit and counter with heavy for maximum damage. If enemy stays far, shoot. Use dodge when you see enemy charging. Patience wins — let them come to you and punish their aggression.",
   },
   {
     level: 5,
     name: "RAZORGIRL",
     title: "Level 5 — Razorgirl",
     faction: "google",
-    hp: 10,
+    hp: 12,
     tokenReward: 100,
-    prompt: "Aggressive melee specialist. Rush toward enemy. Use punch as primary attack. Use heavy when adjacent for big damage. Dodge when you predict enemy heavy attacks. Never retreat.",
+    prompt: "You are a razorgirl — fast and deadly. Close distance fast using vertical movement. When adjacent: punch, punch, then heavy for a burst combo. If enemy blocks, switch to shoot from distance for 2 turns then rush again. If your HP drops below 4, use dodge and parry to survive. Never be predictable — alternate between aggression and retreat.",
   },
   {
     level: 6,
