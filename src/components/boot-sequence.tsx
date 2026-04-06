@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 interface BootLinesProps {
   faction?: string;
   level?: string;
+  runner?: string | null;
   onDone: () => void;
 }
 
@@ -15,11 +16,11 @@ const FACTION_NODES: Record<string, string> = {
   openai: "OPENAI MATRIX NODE",
 };
 
-export function BootLines({ faction, level, onDone }: BootLinesProps) {
+export function BootLines({ faction, level, runner, onDone }: BootLinesProps) {
   const [visibleLines, setVisibleLines] = useState(0);
 
   const lines = [
-    "LOADING NEURAL INTERFACE...",
+    runner ? `RUNNER: ${runner} — NEURAL LINK ACTIVE` : "LOADING NEURAL INTERFACE...",
     `ZAIBATSU LINK: ${FACTION_NODES[faction || "anthropic"] || "UNKNOWN NODE"}`,
     "CONSTRUCT UPLOAD ████████████░░ 85%",
     level ? `TARGET ICE: ${level}` : "SCANNING ICE BARRIERS...",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 
 const SYSOP_LINES = [
@@ -9,13 +9,12 @@ const SYSOP_LINES = [
   { text: "Your construct fights alone in the matrix. What it knows, what it does — that's on you. Write its neural template. That's your only weapon.", type: "sysop" as const },
   { text: "RAM: limited. Make every word count.", type: "emphasis" as const },
   { text: "10 ICE barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "sysop" as const },
-  { text: "The matrix is watching. Show it what you've got, console cowboy.", type: "emphasis" as const },
 ];
 
-const CHAR_SPEED = 30; // ms per character — fast but visible
+const CHAR_SPEED = 30;
 
 interface SysopTerminalProps {
-  onDismiss: () => void;
+  onDismiss: (runnerName: string) => void;
 }
 
 export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
@@ -23,6 +22,9 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
   const [currentLine, setCurrentLine] = useState(0);
   const [currentChar, setCurrentChar] = useState(0);
   const [isDone, setIsDone] = useState(false);
+  const [runnerName, setRunnerName] = useState("");
+  const [nameSubmitted, setNameSubmitted] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Typewriter effect
   useEffect(() => {
@@ -49,7 +51,6 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
       return () => clearTimeout(timer);
     }
 
-    // Line done — pause then next
     const pause = line.type === "system" ? 300 : 600;
     const timer = setTimeout(() => {
       setCurrentLine((l) => l + 1);
@@ -58,13 +59,34 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
     return () => clearTimeout(timer);
   }, [currentLine, currentChar]);
 
-  // Click to skip typewriter
+  // Focus input when typewriter finishes
+  useEffect(() => {
+    if (isDone && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isDone]);
+
   const skipToEnd = useCallback(() => {
     if (isDone) return;
     setDisplayedLines(SYSOP_LINES.map((l) => ({ text: l.text, type: l.type })));
     setCurrentLine(SYSOP_LINES.length);
     setIsDone(true);
   }, [isDone]);
+
+  const submitName = useCallback(() => {
+    const name = runnerName.trim().toUpperCase() || "ANONYMOUS";
+    setRunnerName(name);
+    setNameSubmitted(true);
+    localStorage.setItem("battleai_runner", JSON.stringify({
+      name,
+      createdAt: new Date().toISOString(),
+    }));
+  }, [runnerName]);
+
+  const handleEnter = useCallback(() => {
+    if (!nameSubmitted) return;
+    onDismiss(runnerName);
+  }, [nameSubmitted, runnerName, onDismiss]);
 
   return (
     <motion.div
@@ -75,8 +97,7 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
       onClick={skipToEnd}
     >
       <div className="w-full max-w-lg px-4">
-        {/* Terminal window */}
-        <div className="bg-bg-deep border border-neon-green/20 rounded-sm overflow-hidden"
+        <div className="bg-bg-deep border border-neon-green/20 rounded-sm overflow-hidden relative"
           style={{ boxShadow: "0 0 30px rgba(57,255,20,0.05), inset 0 0 60px rgba(0,0,0,0.5)" }}>
 
           {/* Scanlines overlay */}
@@ -103,30 +124,72 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
               </div>
             ))}
 
-            {/* CTA when done */}
-            {isDone && (
+            {/* Name input phase */}
+            {isDone && !nameSubmitted && (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="mt-6 flex flex-col items-center gap-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-3"
+                onClick={(e) => e.stopPropagation()}
               >
-                <motion.button
-                  onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-10 py-2.5 border-2 border-neon-green text-neon-green font-mono font-bold text-sm uppercase tracking-[0.4em] rounded-sm bg-neon-green/5 hover:bg-neon-green/15 transition-all"
-                  style={{ boxShadow: "0 0 20px rgba(57,255,20,0.2), 0 0 40px rgba(57,255,20,0.1)" }}
-                >
-                  ENTER THE MATRIX
-                </motion.button>
-                <a
-                  href="/lore"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[9px] font-mono text-amber/40 hover:text-amber transition-colors"
-                >
-                  [FULL TRANSMISSION — READ THE LORE]
-                </a>
+                <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-neon-green">&gt;</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={runnerName}
+                    onChange={(e) => setRunnerName(e.target.value.slice(0, 20))}
+                    onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
+                    className="flex-1 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
+                    placeholder="ENTER YOUR HANDLE..."
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </div>
+                <p className="text-neon-green/20 text-[9px] mt-1.5">Press ENTER to confirm</p>
+              </motion.div>
+            )}
+
+            {/* Post-name: SYSOP response + CTA */}
+            {nameSubmitted && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div className="mt-2 mb-1">
+                  <span className="text-neon-green">&gt; </span>
+                  <span className="text-neon-green font-bold">{runnerName}</span>
+                </div>
+                <div className="text-neon-green/70 mb-2">
+                  <span className="text-neon-green/40">SYSOP&gt; </span>
+                  {runnerName}. Fine. The matrix will remember that name — one way or another.
+                </div>
+                <div className="text-neon-green mb-4">
+                  Show it what you&apos;ve got, console cowboy.
+                </div>
+
+                <div className="flex flex-col items-center gap-3">
+                  <motion.button
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.8 }}
+                    onClick={(e) => { e.stopPropagation(); handleEnter(); }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-10 py-2.5 border-2 border-neon-green text-neon-green font-mono font-bold text-sm uppercase tracking-[0.4em] rounded-sm bg-neon-green/5 hover:bg-neon-green/15 transition-all"
+                    style={{ boxShadow: "0 0 20px rgba(57,255,20,0.2), 0 0 40px rgba(57,255,20,0.1)" }}
+                  >
+                    ENTER THE MATRIX
+                  </motion.button>
+                  <a
+                    href="/lore"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[9px] font-mono text-amber/40 hover:text-amber transition-colors"
+                  >
+                    [FULL TRANSMISSION — READ THE LORE]
+                  </a>
+                </div>
               </motion.div>
             )}
 

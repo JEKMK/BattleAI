@@ -182,6 +182,7 @@ export default function Home() {
   const [spotlightPrompt, setSpotlightPrompt] = useState(false); // dims everything except prompt
   const [bootPhase, setBootPhase] = useState<"idle" | "blackout" | "boot" | "flicker" | "done">("idle");
   const [hasBooted, setHasBooted] = useState(false);
+  const [runnerName, setRunnerName] = useState<string | null>(null);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -195,6 +196,11 @@ export default function Home() {
     // Check if first boot already happened
     const booted = localStorage.getItem("battleai_first_boot");
     if (booted) setHasBooted(true);
+    // Load runner name
+    try {
+      const runner = JSON.parse(localStorage.getItem("battleai_runner") || "null");
+      if (runner?.name) setRunnerName(runner.name);
+    } catch { /* ignore */ }
     setShowGauntlet(true);
     setHydrated(true);
   }, []);
@@ -409,6 +415,9 @@ export default function Home() {
           <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
           </h1>
+          {runnerName && (
+            <span className="text-neon-green/60 text-[9px] font-mono">{runnerName}</span>
+          )}
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
           <div className="flex gap-1">
@@ -465,9 +474,10 @@ export default function Home() {
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
             >
-              <SysopTerminal onDismiss={() => {
+              <SysopTerminal onDismiss={(name) => {
                 setShowOnboarding(false);
                 setSpotlightPrompt(true);
+                setRunnerName(name);
                 localStorage.setItem("battleai_onboarding_done", "1");
               }} />
             </motion.div>
@@ -692,7 +702,7 @@ export default function Home() {
                 exit={{ opacity: 0, transition: { duration: 0.15 } }}
                 className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-[10px] text-neon-green/60 gap-1"
               >
-                <BootLines faction={faction} level={currentLevel?.name} onDone={() => setBootPhase("flicker")} />
+                <BootLines faction={faction} level={currentLevel?.name} runner={runnerName} onDone={() => setBootPhase("flicker")} />
               </motion.div>
             )}
           </AnimatePresence>

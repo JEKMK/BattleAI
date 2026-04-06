@@ -55,10 +55,15 @@ export function SysopReport({ gameState, usage, isOver, onReport }: SysopReportP
         .join(", ");
 
       const winner = gameState.winner === "red" ? "PLAYER WINS" : gameState.winner === "blue" ? "PLAYER LOSES" : "DRAW";
+      let runnerHandle = "RUNNER";
+      try {
+        const r = JSON.parse(localStorage.getItem("battleai_runner") || "null");
+        if (r?.name) runnerHandle = r.name;
+      } catch { /* ignore */ }
 
-      const summary = `Battle: ${winner}. ${gameState.tick} cycles. Player ${gameState.fighters[0].hp}/${gameState.fighters[0].maxHp} ICE. Bot ${gameState.fighters[1].hp}/${gameState.fighters[1].maxHp} ICE.
+      const summary = `Battle: ${winner}. ${gameState.tick} cycles. Runner "${runnerHandle}" ${gameState.fighters[0].hp}/${gameState.fighters[0].maxHp} ICE. Bot ${gameState.fighters[1].hp}/${gameState.fighters[1].maxHp} ICE.
 
-Player (${gameState.fighters[0].faction}): ${redActions}. DMG dealt: ${redStats.totalDmgDealt}. Shot acc: ${redStats.shotAccuracy}% (${redStats.shotsHit}/${redStats.shotsFired}). Parry: ${redStats.parrySuccess}/${redStats.parryAttempts}. Latency: ${redStats.avgLatency}ms.
+${runnerHandle} (${gameState.fighters[0].faction}): ${redActions}. DMG dealt: ${redStats.totalDmgDealt}. Shot acc: ${redStats.shotAccuracy}% (${redStats.shotsHit}/${redStats.shotsFired}). Parry: ${redStats.parrySuccess}/${redStats.parryAttempts}. Latency: ${redStats.avgLatency}ms.
 Bot (${gameState.fighters[1].faction}, ${gameState.fighters[1].name}): ${blueActions}. DMG dealt: ${blueStats.totalDmgDealt}. Shot acc: ${blueStats.shotAccuracy}% (${blueStats.shotsHit}/${blueStats.shotsFired}). Latency: ${blueStats.avgLatency}ms.
 
 Combat log:
