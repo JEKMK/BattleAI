@@ -679,7 +679,7 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 min-w-0 p-3 overflow-y-auto relative">
+        <div className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative ${gameState ? "justify-start pt-4" : "justify-center"}`}>
           {/* Boot sequence overlay */}
           <AnimatePresence>
             {bootPhase === "blackout" && (
@@ -816,10 +816,19 @@ export default function Home() {
             </div>
           )}
 
-          {/* Analytics — below arena */}
+          {/* Analytics — below arena (collapsed by default, click to expand) */}
           {usage?.analytics && (
             <div className="w-full max-w-lg font-mono text-[9px]">
-              <div className="flex justify-end mb-1">
+              <div className="flex justify-between items-center mb-1">
+                <button
+                  onClick={() => {
+                    const el = document.getElementById("analytics-panels");
+                    if (el) el.classList.toggle("hidden");
+                  }}
+                  className="text-[9px] font-mono text-text-dim hover:text-cyan transition-colors"
+                >
+                  ▸ ANALYTICS
+                </button>
                 <button
                   onClick={() => {
                     const lines: string[] = ["=== BATTLE ANALYTICS ===", ""];
@@ -867,7 +876,7 @@ export default function Home() {
                   COPY STATS
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div id="analytics-panels" className="hidden grid grid-cols-2 gap-2">
                 {usage.analytics.red && <AnalyticsPanel data={usage.analytics.red} label="[P] PLAYER" color="#b44aff" />}
                 {usage.analytics.blue && <AnalyticsPanel data={usage.analytics.blue} label="[B] BOT" color="#39ff14" />}
               </div>
