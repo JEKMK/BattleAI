@@ -211,11 +211,15 @@ export function resolveTick(
     target: Fighter,
     targetId: "red" | "blue",
     wasStunned: boolean,
+    moved: boolean,
   ) => {
     if (wasStunned) return;
     const dist = distance(actor, target);
-    const multi = actor.damageMultiplier;
+    // Moving + attacking = 50% damage. Standing still = full damage.
+    const mobilityPenalty = moved ? 0.5 : 1.0;
+    const multi = actor.damageMultiplier * mobilityPenalty;
     const hpTag = (f: Fighter) => `[${f.hp}/${f.maxHp}]`;
+    const movingTag = moved ? " (moving)" : "";
 
     switch (action.action) {
       case "punch": {
@@ -228,16 +232,16 @@ export function resolveTick(
             return;
           }
 
-          let dmg = Math.floor(2 * multi);
+          let dmg = Math.max(1, Math.floor(2 * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg / 2));
-            newLogs.push(logWithPos(next.tick, actorId, "attack", `Burn hit shield -${dmg} ICE ${hpTag(target)}`, target));
+            newLogs.push(logWithPos(next.tick, actorId, "attack", `Burn hit shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
           } else if (target.isInvulnerable) {
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Burn phased through — target shifted`, actor));
           } else {
-            const label = multi > 1 ? `COMBO BURN -${dmg} ICE! ${hpTag(target)}` : `Burn connects -${dmg} ICE ${hpTag(target)}`;
-            newLogs.push(logWithPos(next.tick, actorId, "hit", label, target));
+            const comboTag = actor.damageMultiplier > 1 ? "COMBO " : "";
+            newLogs.push(logWithPos(next.tick, actorId, "hit", `${comboTag}Burn -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
@@ -263,7 +267,7 @@ export function resolveTick(
             break;
           }
 
-          let dmg = Math.floor(1 * multi);
+          let dmg = Math.max(1, Math.floor(1 * multi));
           if (target.isBlocking) {
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike deflected by firewall at dist ${dist}`, target));
@@ -271,10 +275,8 @@ export function resolveTick(
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike passes through ghost at dist ${dist}`, actor));
           } else {
-            const label = multi > 1
-              ? `COMBO SPIKE -${dmg} ICE at dist ${dist} (${acc}% lock) ${hpTag(target)}`
-              : `Spike pierces -${dmg} ICE at dist ${dist} (${acc}% lock) ${hpTag(target)}`;
-            newLogs.push(logWithPos(next.tick, actorId, "hit", label, target));
+            const comboTag = actor.damageMultiplier > 1 ? "COMBO " : "";
+            newLogs.push(logWithPos(next.tick, actorId, "hit", `${comboTag}Spike -${dmg} ICE at dist ${dist} (${acc}% lock)${movingTag} ${hpTag(target)}`, target));
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
@@ -295,16 +297,16 @@ export function resolveTick(
             return;
           }
 
-          let dmg = Math.floor(3 * multi);
+          let dmg = Math.max(1, Math.floor(3 * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg * 0.6));
-            newLogs.push(logWithPos(next.tick, actorId, "hit", `Hammer cracks shield -${dmg} ICE ${hpTag(target)}`, target));
+            newLogs.push(logWithPos(next.tick, actorId, "hit", `Hammer cracks shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
           } else if (target.isInvulnerable) {
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Hammer slams empty space — target phased`, actor));
           } else {
-            const label = multi > 1 ? `MEGA COMBO HAMMER -${dmg} ICE!! ${hpTag(target)}` : `Hammer smashes -${dmg} ICE! ${hpTag(target)}`;
-            newLogs.push(logWithPos(next.tick, actorId, "hit", label, target));
+            const comboTag = actor.damageMultiplier > 1 ? "MEGA COMBO " : "";
+            newLogs.push(logWithPos(next.tick, actorId, "hit", `${comboTag}Hammer -${dmg} ICE!${movingTag} ${hpTag(target)}`, target));
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
@@ -317,13 +319,16 @@ export function resolveTick(
     }
   };
 
+  const redMoved = redAction.move !== "none" && !redWasStunned;
+  const blueMoved = blueAction.move !== "none" && !blueWasStunned;
+
   // Faster LLM attacks first — if they kill, the other doesn't get to attack
   if (redFirst) {
-    resolveAttack(red, "red", redAction, blue, "blue", redWasStunned);
-    if (blue.hp > 0) resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned);
+    resolveAttack(red, "red", redAction, blue, "blue", redWasStunned, redMoved);
+    if (blue.hp > 0) resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned, blueMoved);
   } else {
-    resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned);
-    if (red.hp > 0) resolveAttack(red, "red", redAction, blue, "blue", redWasStunned);
+    resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned, blueMoved);
+    if (red.hp > 0) resolveAttack(red, "red", redAction, blue, "blue", redWasStunned, redMoved);
   }
 
   // Parry whiff — if you parried but nobody attacked you
@@ -406,7 +411,7 @@ ACTIONS: burn/punch (range 2, 2dmg), spike/shoot (range 1-5, 1dmg, accuracy drop
 
 MOVES: north/up, south/down, west/left, east/right, hold/none.
 
-STUNNED = skip next tick. FIREWALL shrinks the arena over time — outside = damage.
+STUNNED = skip next tick. Moving + attacking = half damage. Standing still + attacking = full damage. FIREWALL shrinks the arena over time — outside = damage.
 
 Input: you receive tick state as JSON with distance, positions, cooldowns, and recent history.
 
