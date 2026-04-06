@@ -175,6 +175,7 @@ export default function Home() {
   const [gauntlet, setGauntlet] = useState<GauntletState>(INITIAL_GAUNTLET);
   const [showGauntlet, setShowGauntlet] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [uiVisible, setUiVisible] = useState(false); // prevents flash — stays false until hydration decides
   const [lastScore, setLastScore] = useState(0);
   const [gauntletLevelPlayed, setGauntletLevelPlayed] = useState<number | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<number | null>(null);
@@ -193,7 +194,12 @@ export default function Home() {
     }
     // Show onboarding if first visit
     const onboardingDone = localStorage.getItem("battleai_onboarding_done");
-    if (!onboardingDone) setShowOnboarding(true);
+    const isFirstVisit = !onboardingDone;
+    if (isFirstVisit) {
+      setShowOnboarding(true);
+    } else {
+      setUiVisible(true); // returning user — show UI immediately
+    }
     // Check if first boot already happened
     const booted = localStorage.getItem("battleai_first_boot");
     if (booted) setHasBooted(true);
@@ -349,6 +355,7 @@ export default function Home() {
   const finishBoot = useCallback(() => {
     setBootPhase("done");
     setFlickerKey((k) => k + 1); // trigger CSS flicker-in on panels
+    setUiVisible(true); // reveal UI
     if (!hasBooted) {
       setHasBooted(true);
       localStorage.setItem("battleai_first_boot", "1");
@@ -415,7 +422,7 @@ export default function Home() {
   return (
     <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
       {/* Header */}
-      <header className={`border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0 transition-all duration-500 ${showOnboarding ? "invisible" : ""} ${spotlightPrompt ? "opacity-20" : ""}`}>
+      <header className={`border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0 transition-all duration-500 ${!uiVisible ? "invisible" : ""} ${spotlightPrompt ? "opacity-20" : ""}`}>
         <div className="flex items-center gap-3">
           <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
@@ -498,7 +505,7 @@ export default function Home() {
 
         {/* Fullscreen SYSOP Terminal — first visit onboarding */}
         <AnimatePresence>
-          {showOnboarding && !gameState && bootPhase === "idle" && (
+          {hydrated && showOnboarding && !gameState && bootPhase === "idle" && (
             <motion.div
               key="sysop-overlay"
               initial={{ opacity: 0 }}
@@ -513,7 +520,7 @@ export default function Home() {
 
 
         {/* Left Panel */}
-        <div key={`left-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto ${showOnboarding ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
+        <div key={`left-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
           <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "ring-1 ring-cyan/30 bg-bg-panel" : ""}`}>
             <div className="flex items-center justify-between mb-2">
@@ -694,7 +701,7 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative transition-all duration-500 ${gameState ? "justify-start pt-4" : "justify-center"} ${spotlightPrompt ? "opacity-10" : ""} ${showOnboarding ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
+        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative transition-all duration-500 ${gameState ? "justify-start pt-4" : "justify-center"} ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
 
           {/* Gauntlet victory score */}
           {showGauntlet && isOver && lastScore > 0 && (
@@ -885,7 +892,7 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Intrusion Log */}
-        <div key={`right-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${showOnboarding ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
+        <div key={`right-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
             <CombatLog logs={gameState?.log ?? []} />
           </div>
