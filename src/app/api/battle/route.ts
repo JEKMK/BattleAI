@@ -9,7 +9,7 @@ import {
   BOT_PROMPTS,
   DEFAULT_CONFIG,
 } from "@/lib/types";
-import { createInitialState, resolveTick, buildTickInput, SYSTEM_RULES } from "@/lib/engine";
+import { createInitialState, resolveTick, buildTickInput, buildSystemRules } from "@/lib/engine";
 
 // Per-model pricing (input/output per million tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -92,9 +92,10 @@ async function getAIAction(
   tick: number,
   fighterId: "red" | "blue",
   actionLog: ActionRecord[],
+  rules: string,
 ): Promise<{ action: FighterAction; latencyMs: number }> {
   const model = FACTION_META[faction].model;
-  const fullSystem = `${systemPrompt}\n\n${SYSTEM_RULES}`;
+  const fullSystem = `${systemPrompt}\n\n${rules}`;
   const start = Date.now();
 
   try {
@@ -279,6 +280,11 @@ export async function POST(req: Request) {
     botPrompt: customBotPrompt,
     botName: customBotName,
     botHp: customBotHp,
+    // Level overrides
+    allowedActions: levelAllowedActions,
+    arenaWidth: levelArenaWidth,
+    arenaHeight: levelArenaHeight,
+    playerHp: levelPlayerHp,
   }: {
     playerPrompt: string;
     playerFaction: Faction;
@@ -287,6 +293,10 @@ export async function POST(req: Request) {
     botPrompt?: string;
     botName?: string;
     botHp?: number;
+    allowedActions?: string[];
+    arenaWidth?: number;
+    arenaHeight?: number;
+    playerHp?: number;
   } = body;
 
   if (!playerPrompt || !playerFaction) {
@@ -297,18 +307,27 @@ export async function POST(req: Request) {
   const actualBotPrompt = customBotPrompt || bot.prompt;
   const actualBotName = customBotName || bot.name;
 
-  let state = createInitialState(DEFAULT_CONFIG);
+  const config = {
+    ...DEFAULT_CONFIG,
+    ...(levelArenaWidth && { arenaWidth: levelArenaWidth }),
+    ...(levelArenaHeight && { arenaHeight: levelArenaHeight }),
+    ...(levelPlayerHp && { playerHp: levelPlayerHp }),
+    ...(levelAllowedActions && { allowedActions: levelAllowedActions }),
+  };
+
+  let state = createInitialState(config);
 
   state.fighters[0].name = "PLAYER";
   state.fighters[0].faction = playerFaction;
   state.fighters[1].name = actualBotName;
   state.fighters[1].faction = botFaction;
 
-  // Custom HP for gauntlet levels
   if (customBotHp) {
     state.fighters[1].hp = customBotHp;
     state.fighters[1].maxHp = customBotHp;
   }
+
+  const systemRules = buildSystemRules(levelAllowedActions);
 
   const usage: UsageStats = {
     totalInputTokens: 0,
@@ -325,17 +344,16 @@ export async function POST(req: Request) {
       controller.enqueue(encoder.encode(JSON.stringify(state) + "\n"));
 
       while (state.status === "fighting") {
-        const redInput = buildTickInput(state, "red");
-        const blueInput = buildTickInput(state, "blue");
+        const redInput = buildTickInput(state, "red", levelAllowedActions);
+        const blueInput = buildTickInput(state, "blue", levelAllowedActions);
 
         const [redResult, blueResult] = await Promise.all([
-          getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog),
-          getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog),
+          getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog, systemRules),
+          getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog, systemRules),
         ]);
 
-        // Faster LLM attacks first — latency determines priority
         const redFirst = redResult.latencyMs <= blueResult.latencyMs;
-        state = resolveTick(state, redResult.action, blueResult.action, redFirst);
+        state = resolveTick(state, redResult.action, blueResult.action, redFirst, levelAllowedActions);
 
         const tickDebug = {
           ...state,

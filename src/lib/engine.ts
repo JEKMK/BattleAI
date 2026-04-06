@@ -17,14 +17,15 @@ export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameS
     blueY = 1 + Math.floor(Math.random() * (config.arenaHeight - 2));
   }
 
+  const playerHp = config.playerHp ?? config.maxHp;
   const red: Fighter = {
     id: "red",
     name: "",
     faction: "anthropic",
     x: 1,
     y: redY,
-    hp: config.maxHp,
-    maxHp: config.maxHp,
+    hp: playerHp,
+    maxHp: playerHp,
     facing: "right",
     cooldowns: { dash: 0, dodge: 0, heavy: 0, parry: 0 },
     charging: null,
@@ -109,7 +110,14 @@ export function resolveTick(
   redAction: FighterAction,
   blueAction: FighterAction,
   redFirst: boolean = true,
+  allowedActions?: string[],
 ): GameState {
+  // Filter disallowed actions to "none"
+  if (allowedActions) {
+    if (!allowedActions.includes(redAction.action)) redAction = { ...redAction, action: "none" };
+    if (!allowedActions.includes(blueAction.action)) blueAction = { ...blueAction, action: "none" };
+  }
+
   const next: GameState = JSON.parse(JSON.stringify(state));
   next.tick++;
   const [red, blue] = next.fighters;
@@ -374,14 +382,14 @@ export function resolveTick(
   return next;
 }
 
-export function buildTickInput(state: GameState, fighterId: "red" | "blue"): string {
+export function buildTickInput(state: GameState, fighterId: "red" | "blue", allowedActions?: string[]): string {
   const me = state.fighters[fighterId === "red" ? 0 : 1];
   const enemy = state.fighters[fighterId === "red" ? 1 : 0];
   const recentLogs = state.log.slice(-10);
 
   const dist = Math.abs(me.x - enemy.x) + Math.abs(me.y - enemy.y);
 
-  const input = {
+  const input: Record<string, unknown> = {
     tick: state.tick,
     distance: dist,
     you: {
@@ -402,18 +410,56 @@ export function buildTickInput(state: GameState, fighterId: "red" | "blue"): str
     history: recentLogs,
   };
 
+  if (allowedActions) {
+    input.availableActions = allowedActions;
+  }
+
   return JSON.stringify(input);
 }
 
-export const SYSTEM_RULES = `Arena combat. Each tick you choose 1 move + 1 action.
+const ACTION_DESCRIPTIONS: Record<string, string> = {
+  punch: "burn/punch (range 2, 2dmg)",
+  shoot: "spike/shoot (range 1-5, 1dmg, accuracy drops with distance)",
+  heavy: "hammer/heavy (range 2, 3dmg, cooldown 3)",
+  block: "shield/block (halves melee, blocks spikes)",
+  dodge: "ghost/dodge (invulnerable 1 tick, cooldown 4)",
+  parry: "black_ice/parry (counter: if enemy attacks this tick → stun + 2x next hit, cooldown 5)",
+};
 
-ACTIONS: burn/punch (range 2, 2dmg), spike/shoot (range 1-5, 1dmg, accuracy drops with distance), hammer/heavy (range 2, 3dmg, cooldown 3), shield/block (halves melee, blocks spikes), ghost/dodge (invulnerable 1 tick, cooldown 4), black_ice/parry (counter: if enemy attacks this tick → stun + 2x next hit, cooldown 5).
+const ALL_ACTIONS = ["punch", "shoot", "heavy", "block", "dodge", "parry"];
+
+export function buildSystemRules(allowedActions?: string[]): string {
+  const actions = allowedActions ?? ALL_ACTIONS;
+  const actionDescs = actions
+    .filter((a) => ACTION_DESCRIPTIONS[a])
+    .map((a) => ACTION_DESCRIPTIONS[a])
+    .join(", ");
+
+  let rules = `Arena combat. Each tick you choose 1 move + 1 action.
+
+ACTIONS: ${actionDescs}.
 
 MOVES: north/up, south/down, west/left, east/right, hold/none.
 
-STUNNED = skip next tick. Moving + attacking = half damage. Standing still + attacking = full damage. FIREWALL shrinks the arena over time — outside = damage.
+Moving + attacking = half damage. Standing still + attacking = full damage.`;
+
+  if (actions.includes("parry") || actions.includes("dodge")) {
+    rules += `\nSTUNNED = skip next tick.`;
+  }
+
+  if (actions.includes("heavy") || actions.includes("dodge") || actions.includes("parry")) {
+    rules += `\nSome actions have cooldowns — check your cooldowns before choosing.`;
+  }
+
+  rules += `
 
 Input: you receive tick state as JSON with distance, positions, cooldowns, and recent history.
 
 Respond with one JSON object only:
 {"move":"up","action":"punch"}`;
+
+  return rules;
+}
+
+/** Full rules for backwards compatibility */
+export const SYSTEM_RULES = buildSystemRules();
