@@ -14,6 +14,18 @@ interface FighterAnalytics {
   avgLatency: number;
   totalLatency: number;
   count: number;
+  totalDmgDealt: number;
+  totalDmgBlocked: number;
+  totalDmgDodged: number;
+  shotsHit: number;
+  shotsFired: number;
+  shotAccuracy: number;
+  punchesHit: number;
+  punchesFired: number;
+  heavyHit: number;
+  heavyFired: number;
+  parrySuccess: number;
+  parryAttempts: number;
 }
 
 interface UsageData {
@@ -36,30 +48,45 @@ interface TickDebug {
 
 const FACTIONS: Faction[] = ["anthropic", "google", "openai"];
 
-function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label: string; color: string }) {
-  const totalActions = Object.values(data.actions).reduce((a, b) => a + b, 0);
-  const totalMoves = Object.values(data.moves).reduce((a, b) => a + b, 0);
+// Fixed order + lore tooltips for all actions and moves
+const ACTION_DEFS = [
+  { key: "punch", color: "#ffb800", tip: "BURN — Close-range neural spike. 2 DMG, range 2. The backbone of any intrusion." },
+  { key: "shoot", color: "#39ff14", tip: "PING — Long-range data probe. 1 DMG, range 1-5. Accuracy drops with distance. Safe but weak." },
+  { key: "heavy", color: "#ff8800", tip: "HAMMER — Overclocked memory dump. 3 DMG, range 2, cooldown 3. High voltage, high reward." },
+  { key: "block", color: "#00f0ff", tip: "SHIELD — Firewall hardening. Halves melee DMG, blocks shots. Passive but predictable." },
+  { key: "dodge", color: "#00d4ff", tip: "PHASE — Quantum state shift. Invulnerable 1 cycle. Cooldown 4. Disappear from the grid." },
+  { key: "parry", color: "#ff2d6a", tip: "BLACK ICE — Counter-intrusion trap. If enemy attacks: STUN + your next hit is 2x. Miss = wasted cycle. Cooldown 5." },
+  { key: "none", color: "#4a4a5e", tip: "IDLE — No action executed. Your construct froze or failed to respond." },
+];
 
-  const actionColors: Record<string, string> = {
-    punch: "#ffb800", heavy: "#ffb800", shoot: "#39ff14",
-    block: "#00f0ff", dodge: "#00f0ff", parry: "#ff2d6a", none: "#4a4a5e",
-  };
+const MOVE_DEFS = [
+  { key: "up", color: "#b44aff", tip: "NORTH — Vertical displacement. Use to flank or evade lateral fire." },
+  { key: "down", color: "#b44aff", tip: "SOUTH — Vertical displacement. Mirror of north vector." },
+  { key: "left", color: "#7a7a8e", tip: "WEST — Horizontal retreat. Increases distance from target." },
+  { key: "right", color: "#7a7a8e", tip: "EAST — Horizontal advance. Closes distance to target." },
+  { key: "none", color: "#4a4a5e", tip: "HOLD — No movement. Your construct held position." },
+];
+
+function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label: string; color: string }) {
+  const totalActions = Math.max(1, Object.values(data.actions).reduce((a, b) => a + b, 0));
+  const totalMoves = Math.max(1, Object.values(data.moves).reduce((a, b) => a + b, 0));
 
   return (
     <div className="bg-bg-surface border border-border rounded-sm p-2">
-      <div className={`font-bold mb-1.5 flex justify-between text-[10px]`} style={{ color }}>
+      <div className="font-bold mb-1.5 flex justify-between text-[10px]" style={{ color }}>
         <span>{label}</span>
-        <span className="text-text-dim font-normal">{data.avgLatency}ms avg</span>
+        <span className="text-text-dim font-normal" title="Average neural response latency per cycle">{data.avgLatency}ms avg</span>
       </div>
       <div className="space-y-0.5 mb-2">
-        <span className="text-text-dim text-[8px] uppercase tracking-wider">Actions</span>
-        {Object.entries(data.actions).sort(([, a], [, b]) => b - a).map(([action, count]) => {
-          const pct = totalActions > 0 ? (count / totalActions) * 100 : 0;
+        <span className="text-text-dim text-[8px] uppercase tracking-wider">Subroutines</span>
+        {ACTION_DEFS.map(({ key, color: barColor, tip }) => {
+          const count = data.actions[key] || 0;
+          const pct = (count / totalActions) * 100;
           return (
-            <div key={action} className="flex items-center gap-1">
-              <span className="w-10 text-[9px] text-text-secondary">{action}</span>
+            <div key={key} className="flex items-center gap-1 group relative" title={tip}>
+              <span className="w-10 text-[9px] text-text-secondary cursor-help">{key}</span>
               <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
-                <div className="h-full rounded-sm" style={{ width: `${pct}%`, backgroundColor: actionColors[action] || "#4a4a5e" }} />
+                <div className="h-full rounded-sm transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
               <span className="w-8 text-right text-[9px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
             </div>
@@ -67,20 +94,62 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
         })}
       </div>
       <div className="space-y-0.5">
-        <span className="text-text-dim text-[8px] uppercase tracking-wider">Movement</span>
-        {Object.entries(data.moves).sort(([, a], [, b]) => b - a).map(([move, count]) => {
-          const pct = totalMoves > 0 ? (count / totalMoves) * 100 : 0;
-          const isVert = move === "up" || move === "down";
+        <span className="text-text-dim text-[8px] uppercase tracking-wider">Vectors</span>
+        {MOVE_DEFS.map(({ key, color: barColor, tip }) => {
+          const count = data.moves[key] || 0;
+          const pct = (count / totalMoves) * 100;
           return (
-            <div key={move} className="flex items-center gap-1">
-              <span className="w-10 text-[9px] text-text-secondary">{move}</span>
+            <div key={key} className="flex items-center gap-1" title={tip}>
+              <span className="w-10 text-[9px] text-text-secondary cursor-help">{key}</span>
               <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
-                <div className="h-full rounded-sm" style={{ width: `${pct}%`, backgroundColor: isVert ? "#b44aff" : move === "none" ? "#4a4a5e" : "#7a7a8e" }} />
+                <div className="h-full rounded-sm transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
               <span className="w-8 text-right text-[9px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
             </div>
           );
         })}
+      </div>
+      {/* Combat stats */}
+      <div className="mt-1.5 pt-1.5 border-t border-border space-y-0.5">
+        <span className="text-text-dim text-[8px] uppercase tracking-wider">Combat Data</span>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
+          <div className="flex justify-between" title="Total ICE damage dealt to enemy">
+            <span className="text-text-secondary">DMG dealt</span>
+            <span className="text-amber tabular-nums font-bold">{data.totalDmgDealt}</span>
+          </div>
+          <div className="flex justify-between" title="Total damage absorbed by SHIELD subroutine">
+            <span className="text-text-secondary">DMG blocked</span>
+            <span className="text-cyan tabular-nums">{data.totalDmgBlocked}</span>
+          </div>
+          <div className="flex justify-between" title="PING accuracy — hits / total shots fired">
+            <span className="text-text-secondary">Shot acc.</span>
+            <span className={`tabular-nums ${(data.shotAccuracy || 0) >= 50 ? "text-neon-green" : "text-magenta"}`}>
+              {data.shotAccuracy || 0}% <span className="text-text-dim">({data.shotsHit}/{data.shotsFired})</span>
+            </span>
+          </div>
+          <div className="flex justify-between" title="Times PHASE subroutine avoided damage">
+            <span className="text-text-secondary">Dodged</span>
+            <span className="text-cyan tabular-nums">{data.totalDmgDodged}</span>
+          </div>
+          <div className="flex justify-between" title="BURN hits / total attempts">
+            <span className="text-text-secondary">Punch</span>
+            <span className="text-text-dim tabular-nums">{data.punchesHit}/{data.punchesFired}</span>
+          </div>
+          <div className="flex justify-between" title="HAMMER hits / total attempts">
+            <span className="text-text-secondary">Heavy</span>
+            <span className="text-text-dim tabular-nums">{data.heavyHit}/{data.heavyFired}</span>
+          </div>
+          <div className="flex justify-between" title="BLACK ICE successful counters / total attempts">
+            <span className="text-text-secondary">Parry</span>
+            <span className={`tabular-nums ${(data.parrySuccess || 0) > 0 ? "text-magenta" : "text-text-dim"}`}>
+              {data.parrySuccess || 0}/{data.parryAttempts || 0}
+            </span>
+          </div>
+          <div className="flex justify-between" title="Average neural response time in milliseconds">
+            <span className="text-text-secondary">Latency</span>
+            <span className="text-text-dim tabular-nums">{data.avgLatency}ms</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -88,26 +157,33 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
 
 export default function Home() {
   const [prompt, setPrompt] = useState(
-    "You are a smart tactical fighter. Keep medium distance. Shoot when far, punch when close. Dodge heavy attacks. Block when enemy is adjacent. Be unpredictable.",
+    "Move toward the enemy and attack.",
   );
   const [faction, setFaction] = useState<Faction>("anthropic");
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [lastDebug, setLastDebug] = useState<TickDebug | null>(null);
   const [isFighting, setIsFighting] = useState(false);
+  const [crackedPrompt, setCrackedPrompt] = useState<string | null>(null);
+  const [showCracked, setShowCracked] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Gauntlet state
   const [gauntlet, setGauntlet] = useState<GauntletState>(INITIAL_GAUNTLET);
-  const [showGauntlet, setShowGauntlet] = useState(true);
+  const [showGauntlet, setShowGauntlet] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [lastScore, setLastScore] = useState(0);
+  const [gauntletLevelPlayed, setGauntletLevelPlayed] = useState<number | null>(null);
+  const [expandedLevel, setExpandedLevel] = useState<number | null>(null);
 
-  // Load gauntlet from localStorage
+  // Load gauntlet from localStorage + hydrate
   useEffect(() => {
     const saved = localStorage.getItem("battleai_gauntlet");
     if (saved) {
       try { setGauntlet(JSON.parse(saved)); } catch { /* ignore */ }
     }
+    setShowGauntlet(true);
+    setHydrated(true);
   }, []);
 
   // Save gauntlet to localStorage
@@ -116,6 +192,55 @@ export default function Home() {
   }, [gauntlet]);
 
   const currentLevel = GAUNTLET_LEVELS[gauntlet.currentLevel] || null;
+
+  // Gauntlet progression — triggers when battle ends
+  useEffect(() => {
+    if (isFighting || !gameState || gauntletLevelPlayed === null) return;
+    const isFinished = gameState.status === "ko" || gameState.status === "timeout";
+    if (!isFinished) return;
+
+    const level = GAUNTLET_LEVELS[gauntletLevelPlayed];
+    if (!level) return;
+
+    const won = gameState.winner === "red";
+    const isDraw = gameState.winner === "draw";
+    const score = calculateScore(gameState.tick, gameState.fighters[0].hp, level.hp, won);
+    setLastScore(score);
+    setGauntletLevelPlayed(null); // consume — don't re-trigger
+
+    setGauntlet((prev) => {
+      const next = { ...prev };
+      next.history = [...prev.history, {
+        level: level.level,
+        won,
+        ticks: gameState.tick,
+        hpLeft: gameState.fighters[0].hp,
+        cost: 0,
+        crackedPrompt: won ? level.prompt : undefined,
+      }];
+
+      if (won) {
+        next.wins++;
+        next.totalScore += score;
+        next.totalTokensEarned += level.tokenReward;
+        next.ramUnlocked += level.tokenReward;
+        if (next.currentLevel < GAUNTLET_LEVELS.length - 1) {
+          next.currentLevel++;
+        }
+        if (level.level >= 3 && !next.unlockedActions.includes("heavy")) {
+          next.unlockedActions = [...next.unlockedActions, "heavy"];
+        }
+        if (level.level >= 5 && !next.unlockedActions.includes("parry")) {
+          next.unlockedActions = [...next.unlockedActions, "parry"];
+        }
+      } else if (isDraw) {
+        next.draws++;
+      } else {
+        next.losses++;
+      }
+      return next;
+    });
+  }, [isFighting, gameState, gauntletLevelPlayed]);
 
   const startBattle = useCallback(async (overrides?: {
     botPrompt: string; botName: string; botFaction: Faction; botHp: number;
@@ -187,43 +312,7 @@ export default function Home() {
         }
       }
 
-      // Gauntlet progression
-      if (showGauntlet && currentLevel && finalState) {
-        const won = finalState.winner === "red";
-        const score = calculateScore(finalState.tick, finalState.fighters[0].hp, currentLevel.hp, won);
-        setLastScore(score);
-
-        setGauntlet((prev) => {
-          const next = { ...prev };
-          next.history = [...prev.history, {
-            level: currentLevel.level,
-            won,
-            ticks: finalState!.tick,
-            hpLeft: finalState!.fighters[0].hp,
-            cost: 0,
-          }];
-
-          if (won) {
-            next.wins++;
-            next.totalScore += score;
-            next.totalTokensEarned += currentLevel.tokenReward;
-            next.ramUnlocked += currentLevel.tokenReward;
-            if (next.currentLevel < GAUNTLET_LEVELS.length - 1) {
-              next.currentLevel++;
-            }
-            // Unlock actions at certain levels
-            if (currentLevel.level >= 3 && !next.unlockedActions.includes("heavy")) {
-              next.unlockedActions.push("heavy");
-            }
-            if (currentLevel.level >= 5 && !next.unlockedActions.includes("parry")) {
-              next.unlockedActions.push("parry");
-            }
-          } else {
-            next.losses++;
-          }
-          return next;
-        });
-      }
+      // nothing here — progression handled by useEffect
     } catch (e) {
       if (e instanceof Error && e.name !== "AbortError") {
         console.error("Battle error:", e);
@@ -231,10 +320,13 @@ export default function Home() {
     } finally {
       setIsFighting(false);
     }
-  }, [prompt, faction, isFighting, showGauntlet, currentLevel]);
+  }, [prompt, faction, isFighting]);
 
   const startGauntletBattle = useCallback(() => {
     if (!currentLevel) return;
+    setGauntletLevelPlayed(gauntlet.currentLevel);
+    setCrackedPrompt(currentLevel.prompt);
+    setShowCracked(false);
     startBattle({
       botPrompt: currentLevel.prompt,
       botName: currentLevel.name,
@@ -274,14 +366,16 @@ export default function Home() {
           </div>
         </div>
         <div className="flex items-center gap-4 font-mono text-[10px]">
-          {showGauntlet && (
+          {hydrated && showGauntlet && (
             <>
               <span className="text-text-dim">SCORE</span>
               <span className="text-amber tabular-nums font-bold">{gauntlet.totalScore.toLocaleString()}</span>
               <span className="text-text-dim">RAM</span>
               <span className="text-cyan tabular-nums">{gauntlet.ramUnlocked}</span>
-              <span className="text-text-dim">W/L</span>
+              <span className="text-text-dim">W/D/L</span>
               <span className="text-neon-green tabular-nums">{gauntlet.wins}</span>
+              <span className="text-text-dim">/</span>
+              <span className="text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
               <span className="text-text-dim">/</span>
               <span className="text-magenta tabular-nums">{gauntlet.losses}</span>
             </>
@@ -308,17 +402,18 @@ export default function Home() {
               <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan">
                 &gt; Construct Code_
               </label>
-              <span className="text-text-dim text-[9px] font-mono tabular-nums">
+              <span className={`text-[9px] font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
                 {prompt.length}/{showGauntlet ? gauntlet.ramUnlocked : "∞"} RAM
               </span>
             </div>
             <textarea
               value={prompt}
-              onChange={(e) => {
-                const max = showGauntlet ? gauntlet.ramUnlocked : Infinity;
-                if (e.target.value.length <= max) setPrompt(e.target.value);
-              }}
-              className="w-full h-32 bg-bg-deep border border-border-bright rounded-sm p-2 text-xs font-mono text-cyan/90 resize-none focus:outline-none focus:border-cyan focus:shadow-[0_0_10px_#00f0ff22] transition-all leading-relaxed"
+              onChange={(e) => setPrompt(e.target.value)}
+              className={`w-full h-32 bg-bg-deep border rounded-sm p-2 text-xs font-mono resize-none focus:outline-none transition-all leading-relaxed ${
+                showGauntlet && prompt.length > gauntlet.ramUnlocked
+                  ? "border-magenta text-magenta/90 shadow-[0_0_10px_#ff2d6a22]"
+                  : "border-border-bright text-cyan/90 focus:border-cyan focus:shadow-[0_0_10px_#00f0ff22]"
+              }`}
               placeholder="// Define your construct..."
               disabled={isFighting}
               spellCheck={false}
@@ -355,28 +450,47 @@ export default function Home() {
                   const levelResult = gauntlet.history.filter(h => h.level === lvl.level);
                   const meta = FACTION_META[lvl.faction];
 
+                  const winEntry = levelResult.find(h => h.won && h.crackedPrompt);
+                  const isExpanded = expandedLevel === lvl.level;
+
                   return (
-                    <div key={lvl.level}
-                      className={`px-2 py-1.5 rounded-sm border text-[9px] font-mono transition-all ${
-                        isCurrent ? "border-magenta bg-bg-elevated" :
-                        isBeaten ? "border-neon-green/30 bg-bg-deep" :
-                        "border-border bg-bg-deep opacity-40"
-                      }`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold ${isCurrent ? "text-magenta" : isBeaten ? "text-neon-green" : "text-text-dim"}`}>
-                          {isBeaten ? "✓ " : isLocked ? "◆ " : "▸ "}{lvl.name}
-                        </span>
-                        <span className="text-text-dim">{lvl.hp} ICE</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span style={{ color: meta.color }} className="text-[8px]">{meta.label}</span>
-                        <span className="text-amber text-[8px]">+{lvl.tokenReward} RAM</span>
-                        {isBeaten && levelResult.length > 0 && (
-                          <span className="text-neon-green text-[8px]">
-                            {levelResult[levelResult.length - 1].ticks}t
+                    <div key={lvl.level}>
+                      <button
+                        onClick={() => isBeaten ? setExpandedLevel(isExpanded ? null : lvl.level) : undefined}
+                        className={`w-full px-2 py-1.5 rounded-sm border text-[9px] font-mono transition-all text-left ${
+                          isCurrent ? "border-magenta bg-bg-elevated" :
+                          isBeaten ? "border-neon-green/30 bg-bg-deep hover:border-neon-green/60 cursor-pointer" :
+                          "border-border bg-bg-deep opacity-40 cursor-default"
+                        }`}>
+                        <div className="flex items-center justify-between">
+                          <span className={`font-bold ${isCurrent ? "text-magenta" : isBeaten ? "text-neon-green" : "text-text-dim"}`}>
+                            {isBeaten ? "✓ " : isLocked ? "◆ " : "▸ "}{lvl.name}
                           </span>
-                        )}
-                      </div>
+                          <span className="text-text-dim">{lvl.hp} ICE</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span style={{ color: meta.color }} className="text-[8px]">{meta.label}</span>
+                          <span className="text-amber text-[8px]">+{lvl.tokenReward} RAM</span>
+                          {isBeaten && levelResult.length > 0 && (
+                            <span className="text-neon-green text-[8px]">
+                              {levelResult[levelResult.length - 1].ticks}t
+                            </span>
+                          )}
+                          {isBeaten && winEntry && (
+                            <span className="text-magenta text-[8px]">{isExpanded ? "▾" : "▸"} CODE</span>
+                          )}
+                        </div>
+                      </button>
+                      {isExpanded && winEntry?.crackedPrompt && (
+                        <div className="mx-1 mt-0.5 mb-1 bg-bg-deep border border-magenta/20 rounded-sm p-1.5">
+                          <div className="flex justify-between items-center mb-0.5">
+                            <span className="text-magenta text-[8px] font-mono animate-flicker">&gt; cracked_</span>
+                            <button onClick={() => navigator.clipboard.writeText(winEntry.crackedPrompt!)}
+                              className="text-[7px] font-mono text-text-dim hover:text-cyan">COPY</button>
+                          </div>
+                          <p className="text-neon-green/70 text-[8px] font-mono leading-relaxed">{winEntry.crackedPrompt}</p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -477,12 +591,52 @@ export default function Home() {
             <Arena state={gameState} />
             <AnimatePresence>
               {isOver && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex items-center justify-center bg-bg-deep/80 backdrop-blur-sm">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center bg-bg-deep/85 backdrop-blur-sm">
                   <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", damping: 15 }} className="text-center">
                     <div className={`font-mono text-3xl font-bold tracking-widest mb-1 ${gameState?.winner === "red" ? "text-cyan glow-cyan" : gameState?.winner === "blue" ? "text-magenta glow-magenta" : "text-amber glow-amber"}`}>
                       {gameState?.winner === "red" ? "ICE CRACKED" : gameState?.winner === "blue" ? "FLATLINED" : "DRAW"}
                     </div>
-                    <p className="text-text-secondary text-xs font-mono">{gameState?.status === "timeout" ? "TIME OUT" : "SYSTEM DOWN"}</p>
+                    <p className="text-text-secondary text-xs font-mono mb-3">{gameState?.status === "timeout" ? "TIME OUT" : "SYSTEM DOWN"}</p>
+
+                    {/* Cracked prompt reveal */}
+                    {gameState?.winner === "red" && crackedPrompt && !showCracked && (
+                      <motion.button
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                        onClick={() => setShowCracked(true)}
+                        className="text-[10px] font-mono text-magenta border border-magenta/50 rounded-sm px-3 py-1.5 hover:bg-magenta/10 transition-all animate-pulse-glow"
+                      >
+                        &gt; DECRYPT ENEMY CONSTRUCT CODE_
+                      </motion.button>
+                    )}
+                    {gameState?.winner === "red" && showCracked && crackedPrompt && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-1 max-w-sm">
+                        <div className="bg-bg-deep border border-magenta/30 rounded-sm p-2 text-left">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-magenta text-[9px] font-mono uppercase tracking-wider animate-flicker">&gt; decrypting neural template...</span>
+                            <button onClick={() => { navigator.clipboard.writeText(crackedPrompt); }}
+                              className="text-[8px] font-mono text-text-dim hover:text-cyan transition-colors">COPY</button>
+                          </div>
+                          <p className="text-neon-green/80 text-[10px] font-mono leading-relaxed">{crackedPrompt}</p>
+                        </div>
+                        <p className="text-text-dim text-[8px] font-mono mt-1 italic">
+                          // Enemy construct code exposed. Study it. Adapt. Overcome.
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {gameState?.winner === "blue" && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                        className="text-text-dim text-[9px] font-mono mt-2 max-w-xs">
+                        // Your ICE failed, runner. The enemy construct code remains encrypted. Rewrite your neural template and try again.
+                      </motion.p>
+                    )}
+
+                    {gameState?.winner === "draw" && (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
+                        className="text-text-dim text-[9px] font-mono mt-2 max-w-xs">
+                        // Mutual destruction. No data recovered. The matrix claims both constructs.
+                      </motion.p>
+                    )}
                   </motion.div>
                 </motion.div>
               )}
@@ -503,9 +657,59 @@ export default function Home() {
 
           {/* Analytics — below arena */}
           {usage?.analytics && (
-            <div className="w-full max-w-lg grid grid-cols-2 gap-2 font-mono text-[9px]">
-              {usage.analytics.red && <AnalyticsPanel data={usage.analytics.red} label="[P] PLAYER" color="#b44aff" />}
-              {usage.analytics.blue && <AnalyticsPanel data={usage.analytics.blue} label="[B] BOT" color="#39ff14" />}
+            <div className="w-full max-w-lg font-mono text-[9px]">
+              <div className="flex justify-end mb-1">
+                <button
+                  onClick={() => {
+                    const lines: string[] = ["=== BATTLE ANALYTICS ===", ""];
+                    for (const [side, label] of [["red", "PLAYER"], ["blue", "BOT"]] as const) {
+                      const d = usage.analytics![side];
+                      if (!d) continue;
+                      const totalA = Math.max(1, Object.values(d.actions).reduce((a, b) => a + b, 0));
+                      const totalM = Math.max(1, Object.values(d.moves).reduce((a, b) => a + b, 0));
+                      lines.push(`[${label}] avg ${d.avgLatency}ms`);
+                      lines.push("  Subroutines:");
+                      for (const { key } of ACTION_DEFS) {
+                        const c = d.actions[key] || 0;
+                        lines.push(`    ${key.padEnd(6)} ${String(Math.round((c / totalA) * 100)).padStart(3)}%  (${c}x)`);
+                      }
+                      lines.push("  Vectors:");
+                      for (const { key } of MOVE_DEFS) {
+                        const c = d.moves[key] || 0;
+                        lines.push(`    ${key.padEnd(6)} ${String(Math.round((c / totalM) * 100)).padStart(3)}%  (${c}x)`);
+                      }
+                      lines.push("  Combat:");
+                      lines.push(`    DMG dealt:  ${d.totalDmgDealt}`);
+                      lines.push(`    DMG blocked: ${d.totalDmgBlocked}`);
+                      lines.push(`    DMG dodged:  ${d.totalDmgDodged}`);
+                      lines.push(`    Shot acc:    ${d.shotAccuracy}% (${d.shotsHit}/${d.shotsFired})`);
+                      lines.push(`    Punch:       ${d.punchesHit}/${d.punchesFired}`);
+                      lines.push(`    Heavy:       ${d.heavyHit}/${d.heavyFired}`);
+                      lines.push(`    Parry:       ${d.parrySuccess}/${d.parryAttempts}`);
+                      lines.push(`    Latency:     ${d.avgLatency}ms`);
+                      lines.push("");
+                    }
+                    if (gameState) {
+                      lines.push(`Result: ${gameState.winner === "red" ? "VICTORY" : gameState.winner === "blue" ? "FLATLINED" : "DRAW"} | ${gameState.tick} cycles`);
+                      lines.push(`Player ICE: ${gameState.fighters[0].hp}/${gameState.fighters[0].maxHp} | Bot ICE: ${gameState.fighters[1].hp}/${gameState.fighters[1].maxHp}`);
+                    }
+                    if (usage.costUSD) {
+                      lines.push(`Cost: $${usage.costUSD.toFixed(4)} | ${usage.totalTokens.toLocaleString()} tokens`);
+                    }
+                    navigator.clipboard.writeText(lines.join("\n"));
+                    const btn = document.getElementById("copy-analytics-btn");
+                    if (btn) { btn.textContent = "COPIED"; setTimeout(() => { btn.textContent = "COPY STATS"; }, 1500); }
+                  }}
+                  id="copy-analytics-btn"
+                  className="text-[9px] font-mono text-text-dim hover:text-cyan transition-colors border border-border rounded-sm px-2 py-0.5"
+                >
+                  COPY STATS
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {usage.analytics.red && <AnalyticsPanel data={usage.analytics.red} label="[P] PLAYER" color="#b44aff" />}
+                {usage.analytics.blue && <AnalyticsPanel data={usage.analytics.blue} label="[B] BOT" color="#39ff14" />}
+              </div>
             </div>
           )}
         </div>

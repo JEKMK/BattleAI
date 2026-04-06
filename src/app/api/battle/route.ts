@@ -4,6 +4,7 @@ import path from "path";
 import {
   type Faction,
   type FighterAction,
+  type GameState,
   FACTION_META,
   BOT_PROMPTS,
   DEFAULT_CONFIG,
@@ -77,7 +78,7 @@ async function getAIAction(
   tick: number,
   fighterId: "red" | "blue",
   actionLog: ActionRecord[],
-): Promise<FighterAction> {
+): Promise<{ action: FighterAction; latencyMs: number }> {
   const model = FACTION_META[faction].model;
   const fullSystem = `${systemPrompt}\n\n${SYSTEM_RULES}`;
   const start = Date.now();
@@ -121,7 +122,7 @@ async function getAIAction(
       outputTokens: result.outputTokens,
     });
 
-    return parsed;
+    return { action: parsed, latencyMs };
   } catch (error) {
     const latencyMs = Date.now() - start;
     console.error(`AI error (${model}):`, error);
@@ -134,7 +135,7 @@ async function getAIAction(
       inputTokens: 0,
       outputTokens: 0,
     });
-    return { move: "none", action: "none" };
+    return { action: { move: "none", action: "none" }, latencyMs };
   }
 }
 
@@ -151,12 +152,40 @@ function calculateCost(usage: UsageStats): { perModel: Record<string, number>; t
   return { perModel, total };
 }
 
-function buildAnalytics(actionLog: ActionRecord[]) {
-  const byFighter: Record<string, { moves: Record<string, number>; actions: Record<string, number>; avgLatency: number; totalLatency: number; count: number }> = {};
+interface FighterStats {
+  moves: Record<string, number>;
+  actions: Record<string, number>;
+  avgLatency: number;
+  totalLatency: number;
+  count: number;
+  // Combat stats
+  totalDmgDealt: number;
+  totalDmgBlocked: number;
+  totalDmgDodged: number;
+  shotsHit: number;
+  shotsFired: number;
+  shotAccuracy: number;
+  punchesHit: number;
+  punchesFired: number;
+  heavyHit: number;
+  heavyFired: number;
+  parrySuccess: number;
+  parryAttempts: number;
+}
+
+function buildAnalytics(actionLog: ActionRecord[], gameLog: GameState["log"]) {
+  const byFighter: Record<string, FighterStats> = {};
 
   for (const record of actionLog) {
     if (!byFighter[record.fighter]) {
-      byFighter[record.fighter] = { moves: {}, actions: {}, avgLatency: 0, totalLatency: 0, count: 0 };
+      byFighter[record.fighter] = {
+        moves: {}, actions: {}, avgLatency: 0, totalLatency: 0, count: 0,
+        totalDmgDealt: 0, totalDmgBlocked: 0, totalDmgDodged: 0,
+        shotsHit: 0, shotsFired: 0, shotAccuracy: 0,
+        punchesHit: 0, punchesFired: 0,
+        heavyHit: 0, heavyFired: 0,
+        parrySuccess: 0, parryAttempts: 0,
+      };
     }
     const f = byFighter[record.fighter];
     f.moves[record.parsed.move] = (f.moves[record.parsed.move] || 0) + 1;
@@ -165,8 +194,61 @@ function buildAnalytics(actionLog: ActionRecord[]) {
     f.count++;
   }
 
+  // Parse combat log for damage stats
+  for (const log of gameLog) {
+    const attacker = log.fighter;
+    const f = byFighter[attacker];
+    if (!f) continue;
+
+    // Extract damage from messages like "-2", "COMBO -4!", "HEAVY -3!", "BLOCKED -1"
+    const dmgMatch = log.message.match(/-(\d+)/);
+    const dmg = dmgMatch ? parseInt(dmgMatch[1]) : 0;
+
+    if (log.type === "hit") {
+      f.totalDmgDealt += dmg;
+      if (log.message.includes("HEAVY") || log.message.includes("MEGA")) f.heavyHit++;
+      else if (log.message.includes("COMBO") || dmg >= 2) f.punchesHit++;
+      else f.shotsHit++;
+    }
+
+    if (log.type === "attack" && log.message.includes("BLOCKED")) {
+      // Attacker's hit was blocked — the defender blocked
+      const defender = attacker === "red" ? "blue" : "red";
+      if (byFighter[defender]) byFighter[defender].totalDmgBlocked += dmg;
+      f.totalDmgDealt += dmg; // still dealt some damage through block
+    }
+
+    if (log.type === "miss") {
+      if (log.message === "MISS!") {
+        // Shot missed due to accuracy
+        f.shotsFired++;
+      } else if (log.message.includes("DODGED") || log.message.includes("MISS!")) {
+        const defender = attacker === "red" ? "blue" : "red";
+        if (byFighter[defender]) byFighter[defender].totalDmgDodged++;
+      }
+    }
+
+    if (log.type === "parry") {
+      if (log.message.includes("SUCCESS") || log.message.includes("DEFLECT") || log.message.includes("PERFECT")) {
+        f.parrySuccess++;
+      }
+      if (log.message === "PARRY!") f.parryAttempts++;
+    }
+  }
+
+  // Count shots/punches/heavy fired from action log
+  for (const record of actionLog) {
+    const f = byFighter[record.fighter];
+    if (!f) continue;
+    if (record.parsed.action === "shoot") f.shotsFired++;
+    if (record.parsed.action === "punch") f.punchesFired++;
+    if (record.parsed.action === "heavy") f.heavyFired++;
+    if (record.parsed.action === "parry") f.parryAttempts++;
+  }
+
   for (const f of Object.values(byFighter)) {
-    f.avgLatency = Math.round(f.totalLatency / f.count);
+    f.avgLatency = Math.round(f.totalLatency / Math.max(1, f.count));
+    f.shotAccuracy = f.shotsFired > 0 ? Math.round((f.shotsHit / f.shotsFired) * 100) : 0;
   }
 
   return byFighter;
@@ -232,23 +314,23 @@ export async function POST(req: Request) {
         const redInput = buildTickInput(state, "red");
         const blueInput = buildTickInput(state, "blue");
 
-        const [redAction, blueAction] = await Promise.all([
+        const [redResult, blueResult] = await Promise.all([
           getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog),
           getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog),
         ]);
 
-        state = resolveTick(state, redAction, blueAction);
+        // Faster LLM attacks first — latency determines priority
+        const redFirst = redResult.latencyMs <= blueResult.latencyMs;
+        state = resolveTick(state, redResult.action, blueResult.action, redFirst);
 
-        // Send game state + debug info for this tick
         const tickDebug = {
           ...state,
           _debug: {
-            redAction,
-            blueAction,
-            redRaw: actionLog.filter(a => a.tick === state.tick && a.fighter === "red")[0]?.rawResponse,
-            blueRaw: actionLog.filter(a => a.tick === state.tick && a.fighter === "blue")[0]?.rawResponse,
-            redLatency: actionLog.filter(a => a.tick === state.tick && a.fighter === "red")[0]?.latencyMs,
-            blueLatency: actionLog.filter(a => a.tick === state.tick && a.fighter === "blue")[0]?.latencyMs,
+            redAction: redResult.action,
+            blueAction: blueResult.action,
+            redLatency: redResult.latencyMs,
+            blueLatency: blueResult.latencyMs,
+            priority: redFirst ? "red" : "blue",
           },
         };
 
@@ -259,7 +341,7 @@ export async function POST(req: Request) {
 
       // Send analytics
       const costs = calculateCost(usage);
-      const analytics = buildAnalytics(actionLog);
+      const analytics = buildAnalytics(actionLog, state.log);
 
       const statsLine = JSON.stringify({
         _type: "usage",

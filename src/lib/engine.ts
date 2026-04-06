@@ -108,6 +108,7 @@ export function resolveTick(
   state: GameState,
   redAction: FighterAction,
   blueAction: FighterAction,
+  redFirst: boolean = true,
 ): GameState {
   const next: GameState = JSON.parse(JSON.stringify(state));
   next.tick++;
@@ -316,8 +317,14 @@ export function resolveTick(
     }
   };
 
-  resolveAttack(red, "red", redAction, blue, "blue", redWasStunned);
-  resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned);
+  // Faster LLM attacks first — if they kill, the other doesn't get to attack
+  if (redFirst) {
+    resolveAttack(red, "red", redAction, blue, "blue", redWasStunned);
+    if (blue.hp > 0) resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned);
+  } else {
+    resolveAttack(blue, "blue", blueAction, red, "red", blueWasStunned);
+    if (red.hp > 0) resolveAttack(red, "red", redAction, blue, "blue", redWasStunned);
+  }
 
   // Parry whiff — if you parried but nobody attacked you
   if (red.isParrying && !blue.isStunned && !["punch", "shoot", "heavy"].includes(blueAction.action)) {

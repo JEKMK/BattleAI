@@ -17,8 +17,9 @@ export interface GauntletState {
   ramUnlocked: number; // max prompt length
   wins: number;
   losses: number;
+  draws: number;
   unlockedActions: string[];
-  history: { level: number; won: boolean; ticks: number; hpLeft: number; cost: number }[];
+  history: { level: number; won: boolean; ticks: number; hpLeft: number; cost: number; crackedPrompt?: string }[];
 }
 
 export const INITIAL_GAUNTLET: GauntletState = {
@@ -28,6 +29,7 @@ export const INITIAL_GAUNTLET: GauntletState = {
   ramUnlocked: 200, // start with 200 chars
   wins: 0,
   losses: 0,
+  draws: 0,
   unlockedActions: ["punch", "shoot", "block", "dodge"],
   history: [],
 };
