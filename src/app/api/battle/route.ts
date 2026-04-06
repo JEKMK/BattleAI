@@ -35,16 +35,30 @@ interface ActionRecord {
   outputTokens: number;
 }
 
+// Lore aliases → internal action names
+const ACTION_ALIASES: Record<string, string> = {
+  burn: "punch", spike: "shoot", hammer: "heavy",
+  shield: "block", ghost: "dodge", "black_ice": "parry", "blackice": "parry", "b.ice": "parry",
+  // originals pass through
+  punch: "punch", shoot: "shoot", heavy: "heavy",
+  block: "block", dodge: "dodge", parry: "parry", none: "none",
+};
+
+const MOVE_ALIASES: Record<string, string> = {
+  north: "up", south: "down", west: "left", east: "right", hold: "none",
+  up: "up", down: "down", left: "left", right: "right", none: "none",
+};
+
 function parseAction(text: string): FighterAction {
   try {
     const match = text.match(/\{[^}]+\}/);
     if (!match) return { move: "none", action: "none" };
     const parsed = JSON.parse(match[0]);
-    const validMoves = ["up", "down", "left", "right", "none"];
-    const validActions = ["punch", "shoot", "heavy", "block", "dodge", "parry", "none"];
+    const move = MOVE_ALIASES[(parsed.move || "none").toLowerCase()] || "none";
+    const action = ACTION_ALIASES[(parsed.action || "none").toLowerCase()] || "none";
     return {
-      move: validMoves.includes(parsed.move) ? parsed.move : "none",
-      action: validActions.includes(parsed.action) ? parsed.action : "none",
+      move: move as FighterAction["move"],
+      action: action as FighterAction["action"],
     };
   } catch {
     return { move: "none", action: "none" };

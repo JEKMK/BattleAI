@@ -50,21 +50,21 @@ const FACTIONS: Faction[] = ["anthropic", "google", "openai"];
 
 // Fixed order + lore tooltips for all actions and moves
 const ACTION_DEFS = [
-  { key: "punch", color: "#ffb800", tip: "BURN — Close-range neural spike. 2 DMG, range 2. The backbone of any intrusion." },
-  { key: "shoot", color: "#39ff14", tip: "SPIKE — Long-range ICE breaker. 1 DMG, range 1-5. Accuracy: 100% at dist 1, 35% at dist 5. Safe but weak." },
-  { key: "heavy", color: "#ff8800", tip: "HAMMER — Overclocked memory dump. 3 DMG, range 2, cooldown 3. High voltage, high reward." },
-  { key: "block", color: "#00f0ff", tip: "SHIELD — Firewall hardening. Halves melee DMG, blocks shots. Passive but predictable." },
-  { key: "dodge", color: "#00d4ff", tip: "PHASE — Quantum state shift. Invulnerable 1 cycle. Cooldown 4. Disappear from the grid." },
-  { key: "parry", color: "#ff2d6a", tip: "BLACK ICE — Counter-intrusion trap. If enemy attacks: STUN + your next hit is 2x. Miss = wasted cycle. Cooldown 5." },
-  { key: "none", color: "#4a4a5e", tip: "IDLE — No action executed. Your construct froze or failed to respond." },
+  { key: "punch", label: "burn", color: "#ffb800", tip: "BURN — Close-range neural spike. 2 DMG, range 2. The backbone of any intrusion." },
+  { key: "shoot", label: "spike", color: "#39ff14", tip: "SPIKE — Long-range ICE breaker. 1 DMG, range 1-5. Accuracy: 100% at dist 1, 35% at dist 5. Safe but weak." },
+  { key: "heavy", label: "hammer", color: "#ff8800", tip: "HAMMER — Overclocked memory dump. 3 DMG, range 2, cooldown 3. High voltage, high reward." },
+  { key: "block", label: "shield", color: "#00f0ff", tip: "SHIELD — Firewall hardening. Halves melee DMG, blocks spikes. Passive but predictable." },
+  { key: "dodge", label: "ghost", color: "#00d4ff", tip: "GHOST — Quantum state shift. Invulnerable 1 cycle. Cooldown 4. Disappear from the grid." },
+  { key: "parry", label: "b.ice", color: "#ff2d6a", tip: "BLACK ICE — Counter-intrusion trap. If enemy attacks: STUN + your next hit is 2x. Miss = wasted cycle. Cooldown 5." },
+  { key: "none", label: "idle", color: "#4a4a5e", tip: "IDLE — No action executed. Your construct froze or failed to respond." },
 ];
 
 const MOVE_DEFS = [
-  { key: "up", color: "#b44aff", tip: "NORTH — Vertical displacement. Use to flank or evade lateral fire." },
-  { key: "down", color: "#b44aff", tip: "SOUTH — Vertical displacement. Mirror of north vector." },
-  { key: "left", color: "#7a7a8e", tip: "WEST — Horizontal retreat. Increases distance from target." },
-  { key: "right", color: "#7a7a8e", tip: "EAST — Horizontal advance. Closes distance to target." },
-  { key: "none", color: "#4a4a5e", tip: "HOLD — No movement. Your construct held position." },
+  { key: "up", label: "north", color: "#b44aff", tip: "NORTH — Vertical displacement. Use to flank or evade lateral fire." },
+  { key: "down", label: "south", color: "#b44aff", tip: "SOUTH — Vertical displacement. Mirror of north vector." },
+  { key: "left", label: "west", color: "#7a7a8e", tip: "WEST — Horizontal retreat. Increases distance from target." },
+  { key: "right", label: "east", color: "#7a7a8e", tip: "EAST — Horizontal advance. Closes distance to target." },
+  { key: "none", label: "hold", color: "#4a4a5e", tip: "HOLD — No movement. Your construct held position." },
 ];
 
 function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label: string; color: string }) {
@@ -79,12 +79,12 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
       </div>
       <div className="space-y-0.5 mb-2">
         <span className="text-text-dim text-[8px] uppercase tracking-wider">Subroutines</span>
-        {ACTION_DEFS.map(({ key, color: barColor, tip }) => {
+        {ACTION_DEFS.map(({ key, label, color: barColor, tip }) => {
           const count = data.actions[key] || 0;
           const pct = (count / totalActions) * 100;
           return (
             <div key={key} className="flex items-center gap-1 group relative" title={tip}>
-              <span className="w-10 text-[9px] text-text-secondary cursor-help">{key}</span>
+              <span className="w-10 text-[9px] text-text-secondary cursor-help">{label}</span>
               <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
                 <div className="h-full rounded-sm transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
@@ -95,12 +95,12 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
       </div>
       <div className="space-y-0.5">
         <span className="text-text-dim text-[8px] uppercase tracking-wider">Vectors</span>
-        {MOVE_DEFS.map(({ key, color: barColor, tip }) => {
+        {MOVE_DEFS.map(({ key, label, color: barColor, tip }) => {
           const count = data.moves[key] || 0;
           const pct = (count / totalMoves) * 100;
           return (
             <div key={key} className="flex items-center gap-1" title={tip}>
-              <span className="w-10 text-[9px] text-text-secondary cursor-help">{key}</span>
+              <span className="w-10 text-[9px] text-text-secondary cursor-help">{label}</span>
               <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
                 <div className="h-full rounded-sm transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
@@ -669,14 +669,14 @@ export default function Home() {
                       const totalM = Math.max(1, Object.values(d.moves).reduce((a, b) => a + b, 0));
                       lines.push(`[${label}] avg ${d.avgLatency}ms`);
                       lines.push("  Subroutines:");
-                      for (const { key } of ACTION_DEFS) {
+                      for (const { key, label } of ACTION_DEFS) {
                         const c = d.actions[key] || 0;
-                        lines.push(`    ${key.padEnd(6)} ${String(Math.round((c / totalA) * 100)).padStart(3)}%  (${c}x)`);
+                        lines.push(`    ${label.padEnd(6)} ${String(Math.round((c / totalA) * 100)).padStart(3)}%  (${c}x)`);
                       }
                       lines.push("  Vectors:");
-                      for (const { key } of MOVE_DEFS) {
+                      for (const { key, label } of MOVE_DEFS) {
                         const c = d.moves[key] || 0;
-                        lines.push(`    ${key.padEnd(6)} ${String(Math.round((c / totalM) * 100)).padStart(3)}%  (${c}x)`);
+                        lines.push(`    ${label.padEnd(6)} ${String(Math.round((c / totalM) * 100)).padStart(3)}%  (${c}x)`);
                       }
                       lines.push("  Combat:");
                       lines.push(`    DMG dealt:  ${d.totalDmgDealt}`);

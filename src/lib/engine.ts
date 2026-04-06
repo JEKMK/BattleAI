@@ -400,19 +400,15 @@ export function buildTickInput(state: GameState, fighterId: "red" | "blue"): str
   return JSON.stringify(input);
 }
 
-export const SYSTEM_RULES = `You fight in a grid arena. Each tick: 1 move + 1 action. The arena SHRINKS over time — stay inside or take damage!
+export const SYSTEM_RULES = `Arena combat. Each tick you choose 1 move + 1 action.
 
-RULES:
-- punch: range 2, 2 dmg. Reliable melee.
-- shoot: range 1-5, 1 dmg. ACCURACY DROPS with distance (close=95%, far=35%). Miss wastes your turn.
-- heavy: range 2, 3 dmg, cooldown 3. Big damage up close.
-- block: halves melee, blocks shots.
-- dodge: invulnerable 1 tick, cooldown 4.
-- parry: if enemy attacks, they get STUNNED + your next hit is 2x. If they don't attack, wasted. Cooldown 5.
-- STUNNED = skip next tick.
-- FIREWALL: arena shrinks every 15 ticks after tick 30. Outside = 1 dmg/tick.
+ACTIONS: burn/punch (range 2, 2dmg), spike/shoot (range 1-5, 1dmg, accuracy drops with distance), hammer/heavy (range 2, 3dmg, cooldown 3), shield/block (halves melee, blocks spikes), ghost/dodge (invulnerable 1 tick, cooldown 4), black_ice/parry (counter: if enemy attacks this tick → stun + 2x next hit, cooldown 5).
 
-TIPS: Get close for reliable damage. Shoot misses at long range. Mix attacks to be unpredictable. Move vertically to flank.
+MOVES: north/up, south/down, west/left, east/right, hold/none.
 
-Respond with exactly one JSON object. No markdown. No explanation. No backticks.
+STUNNED = skip next tick. FIREWALL shrinks the arena over time — outside = damage.
+
+Input: you receive tick state as JSON with distance, positions, cooldowns, and recent history.
+
+Respond with one JSON object only:
 {"move":"up","action":"punch"}`;
