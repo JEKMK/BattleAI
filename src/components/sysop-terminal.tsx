@@ -17,93 +17,130 @@ interface SysopTerminalProps {
   onDismiss: (runnerName: string) => void;
 }
 
-export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
-  const [phase, setPhase] = useState<"connecting" | "typing" | "name" | "ready">("connecting");
-  const [displayedLines, setDisplayedLines] = useState<{ text: string; type: string }[]>([]);
-  const [currentLine, setCurrentLine] = useState(0);
-  const [currentChar, setCurrentChar] = useState(0);
-  const [runnerName, setRunnerName] = useState("");
-  const [nameSubmitted, setNameSubmitted] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+function useTypewriter(lines: { text: string; type: string }[], enabled: boolean) {
+  const [displayed, setDisplayed] = useState<{ text: string; type: string }[]>([]);
+  const [lineIdx, setLineIdx] = useState(0);
+  const [charIdx, setCharIdx] = useState(0);
+  const [done, setDone] = useState(false);
 
-  // Phase 1: Connecting animation
   useEffect(() => {
-    if (phase !== "connecting") return;
-    const timer = setTimeout(() => setPhase("typing"), 1800);
-    return () => clearTimeout(timer);
-  }, [phase]);
+    if (!enabled || done) return;
+    if (lineIdx >= lines.length) { setDone(true); return; }
 
-  // Phase 2: Typewriter
-  useEffect(() => {
-    if (phase !== "typing") return;
-    if (currentLine >= SYSOP_LINES.length) {
-      setPhase("name");
-      return;
+    const line = lines[lineIdx];
+    if (charIdx === 0) {
+      setDisplayed((prev) => [...prev, { text: "", type: line.type }]);
     }
 
-    const line = SYSOP_LINES[currentLine];
-
-    if (currentChar === 0) {
-      setDisplayedLines((prev) => [...prev, { text: "", type: line.type }]);
-    }
-
-    if (currentChar < line.text.length) {
+    if (charIdx < line.text.length) {
+      const speed = line.type === "system" ? 10 : CHAR_SPEED;
       const timer = setTimeout(() => {
-        setDisplayedLines((prev) => {
+        setDisplayed((prev) => {
           const next = [...prev];
-          next[next.length - 1] = { text: line.text.slice(0, currentChar + 1), type: line.type };
+          next[next.length - 1] = { text: line.text.slice(0, charIdx + 1), type: line.type };
           return next;
         });
-        setCurrentChar((c) => c + 1);
-      }, line.type === "system" ? 10 : CHAR_SPEED);
+        setCharIdx((c) => c + 1);
+      }, speed);
       return () => clearTimeout(timer);
     }
 
     const pause = line.type === "system" ? 300 : 600;
-    const timer = setTimeout(() => {
-      setCurrentLine((l) => l + 1);
-      setCurrentChar(0);
-    }, pause);
+    const timer = setTimeout(() => { setLineIdx((l) => l + 1); setCharIdx(0); }, pause);
     return () => clearTimeout(timer);
-  }, [phase, currentLine, currentChar]);
-
-  // Focus input when name phase starts
-  useEffect(() => {
-    if (phase === "name" && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [phase]);
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [displayedLines, phase, nameSubmitted]);
+  }, [enabled, done, lineIdx, charIdx, lines]);
 
   const skipToEnd = useCallback(() => {
-    if (phase === "connecting") {
-      setPhase("typing");
-      return;
-    }
-    if (phase === "typing") {
-      setDisplayedLines(SYSOP_LINES.map((l) => ({ text: l.text, type: l.type })));
-      setCurrentLine(SYSOP_LINES.length);
-      setPhase("name");
-    }
+    if (done) return;
+    setDisplayed(lines.map((l) => ({ text: l.text, type: l.type })));
+    setLineIdx(lines.length);
+    setDone(true);
+  }, [done, lines]);
+
+  return { displayed, done, skipToEnd };
+}
+
+export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
+  const [phase, setPhase] = useState<"connecting" | "intro" | "name" | "post" | "confirm">("connecting");
+  const [runnerName, setRunnerName] = useState("");
+  const [nameSubmitted, setNameSubmitted] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Intro typewriter
+  const intro = useTypewriter(SYSOP_LINES, phase === "intro" || phase === "name" || phase === "post" || phase === "confirm");
+
+  // Post-name typewriter lines (generated after name is submitted)
+  const [postLines, setPostLines] = useState<{ text: string; type: string }[]>([]);
+  const post = useTypewriter(postLines, phase === "post" || phase === "confirm");
+
+  // Connecting → intro
+  useEffect(() => {
+    if (phase !== "connecting") return;
+    const timer = setTimeout(() => setPhase("intro"), 1800);
+    return () => clearTimeout(timer);
   }, [phase]);
+
+  // Intro done → name input
+  useEffect(() => {
+    if (intro.done && phase === "intro") setPhase("name");
+  }, [intro.done, phase]);
+
+  // Focus name input
+  useEffect(() => {
+    if (phase === "name" && inputRef.current) inputRef.current.focus();
+  }, [phase]);
+
+  // Post typewriter done → confirm prompt
+  useEffect(() => {
+    if (post.done && phase === "post") {
+      setPhase("confirm");
+      setTimeout(() => confirmRef.current?.focus(), 100);
+    }
+  }, [post.done, phase]);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [intro.displayed, post.displayed, phase, nameSubmitted]);
 
   const submitName = useCallback(() => {
     const name = runnerName.trim().toUpperCase() || "ANONYMOUS";
     setRunnerName(name);
     setNameSubmitted(true);
-    localStorage.setItem("battleai_runner", JSON.stringify({
-      name,
-      createdAt: new Date().toISOString(),
-    }));
-    setTimeout(() => setPhase("ready"), 500);
+    localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
+    setPostLines([
+      { text: `${name}. The matrix will remember that name — one way or another.`, type: "sysop" },
+      { text: "Show it what you've got, console cowboy.", type: "emphasis" },
+    ]);
+    setTimeout(() => setPhase("post"), 400);
   }, [runnerName]);
+
+  const handleConfirm = useCallback((value: string) => {
+    const v = value.trim().toLowerCase();
+    if (v === "y" || v === "yes" || v === "") {
+      onDismiss(runnerName);
+    }
+  }, [runnerName, onDismiss]);
+
+  const skipAll = useCallback(() => {
+    if (phase === "connecting") { setPhase("intro"); return; }
+    if (phase === "intro") { intro.skipToEnd(); return; }
+    if (phase === "post") { post.skipToEnd(); return; }
+  }, [phase, intro, post]);
+
+  const renderLine = (line: { text: string; type: string }, i: number, isLast: boolean, showCursor: boolean) => (
+    <div key={i} className={`mb-2 ${
+      line.type === "system" ? "text-neon-green/30 text-[10px] uppercase tracking-widest" :
+      line.type === "emphasis" ? "text-neon-green" :
+      "text-neon-green/70"
+    }`}>
+      {line.type === "sysop" && <span className="text-neon-green/40">SYSOP&gt; </span>}
+      {line.text}
+      {isLast && showCursor && <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5 align-middle" />}
+    </div>
+  );
 
   return (
     <motion.div
@@ -111,18 +148,16 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.3 } }}
       className="w-full h-full flex flex-col items-center justify-center"
-      onClick={phase === "typing" || phase === "connecting" ? skipToEnd : undefined}
+      onClick={phase === "intro" || phase === "connecting" || phase === "post" ? skipAll : undefined}
     >
       <div className="w-full max-w-lg px-4">
         <div className="bg-bg-deep border border-neon-green/20 rounded-sm overflow-hidden relative crt-terminal"
           style={{ animation: "flicker-in 0.5s ease-out forwards, glow-surge-green 1s ease-out 0.5s forwards" }}>
 
-          {/* Scanlines overlay */}
+          {/* Scanlines */}
           <div className="absolute inset-0 pointer-events-none z-10" style={{
             background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(57,255,20,0.015) 2px, rgba(57,255,20,0.015) 4px)",
           }} />
-
-          {/* Horizontal scanline sweep on boot */}
           <div className="crt-scanline-bar" style={{ animationDuration: "3s" }} />
 
           {/* Header */}
@@ -136,118 +171,77 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
             </span>
           </div>
 
-          {/* Body — fixed height, scrollable */}
+          {/* Body */}
           <div ref={scrollRef} className="p-4 font-mono text-sm leading-relaxed h-[320px] overflow-y-auto relative">
-            {/* Connecting animation */}
+            {/* Connecting */}
             {phase === "connecting" && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center h-full gap-3"
-              >
-                <div className="text-neon-green/20 text-[10px] uppercase tracking-[0.5em]">
-                  ESTABLISHING NEURAL LINK
-                </div>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full gap-3">
+                <div className="text-neon-green/20 text-[10px] uppercase tracking-[0.5em]">ESTABLISHING NEURAL LINK</div>
                 <div className="flex gap-1">
                   {[0, 1, 2, 3, 4].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="w-2 h-2 bg-neon-green/40 rounded-sm"
+                    <motion.div key={i} className="w-2 h-2 bg-neon-green/40 rounded-sm"
                       animate={{ opacity: [0.2, 1, 0.2] }}
-                      transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
-                    />
+                      transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }} />
                   ))}
                 </div>
-                <div className="text-neon-green/10 text-[8px] font-mono">
-                  CHIBA CITY RELAY NODE // ENCRYPTED
-                </div>
+                <div className="text-neon-green/10 text-[8px] font-mono">CHIBA CITY RELAY NODE // ENCRYPTED</div>
               </motion.div>
             )}
 
-            {/* Typewriter lines */}
-            {phase !== "connecting" && displayedLines.map((line, i) => {
-              const isLastLine = i === displayedLines.length - 1;
-              const showCursor = isLastLine && phase === "typing";
-              return (
-                <div key={i} className={`mb-2 ${
-                  line.type === "system" ? "text-neon-green/30 text-[10px] uppercase tracking-widest" :
-                  line.type === "emphasis" ? "text-neon-green" :
-                  "text-neon-green/70"
-                }`}>
-                  {line.type === "sysop" && <span className="text-neon-green/40">SYSOP&gt; </span>}
-                  {line.text}
-                  {showCursor && <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5 align-middle" />}
-                </div>
-              );
+            {/* Intro typewriter */}
+            {phase !== "connecting" && intro.displayed.map((line, i) => {
+              const isLast = i === intro.displayed.length - 1;
+              return renderLine(line, i, isLast, !intro.done && phase === "intro");
             })}
 
             {/* Name input */}
             {phase === "name" && !nameSubmitted && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-2"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2" onClick={(e) => e.stopPropagation()}>
                 <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
                 <div className="flex items-center gap-2">
                   <span className="text-neon-green">&gt;</span>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={runnerName}
+                  <input ref={inputRef} type="text" value={runnerName}
                     onChange={(e) => setRunnerName(e.target.value.slice(0, 20))}
                     onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
                     className="flex-1 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
-                    placeholder="ENTER YOUR HANDLE..."
-                    spellCheck={false}
-                    autoComplete="off"
-                  />
+                    placeholder="ENTER YOUR HANDLE..." spellCheck={false} autoComplete="off" />
                 </div>
-                <p className="text-neon-green/20 text-[9px] mt-1.5">Press ENTER to confirm</p>
               </motion.div>
             )}
 
-            {/* Post-name response */}
+            {/* Name submitted echo */}
             {nameSubmitted && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
-                <div className="mt-1 mb-2">
+              <>
+                <div className="text-amber mt-2 mb-1">SYSOP&gt; What do they call you, runner?</div>
+                <div className="mb-2">
                   <span className="text-neon-green">&gt; </span>
                   <span className="text-neon-green font-bold">{runnerName}</span>
                 </div>
-                <div className="text-neon-green/70 mb-1">
-                  <span className="text-neon-green/40">SYSOP&gt; </span>
-                  {runnerName}. The matrix will remember that name — one way or another.
-                </div>
-                <div className="text-neon-green">
-                  Show it what you&apos;ve got, console cowboy.
-                </div>
-              </motion.div>
+              </>
             )}
 
-            {/* ENTER THE MATRIX button */}
-            {phase === "ready" && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mt-4 flex flex-col items-center gap-3"
-              >
-                <motion.button
-                  onClick={(e) => { e.stopPropagation(); onDismiss(runnerName); }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-10 py-2.5 border-2 border-neon-green text-neon-green font-mono font-bold text-sm uppercase tracking-[0.4em] rounded-sm bg-neon-green/5 hover:bg-neon-green/15 transition-all"
-                  style={{ boxShadow: "0 0 20px rgba(57,255,20,0.2), 0 0 40px rgba(57,255,20,0.1)" }}
-                >
-                  ENTER THE MATRIX
-                </motion.button>
-                <a
-                  href="/lore"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[9px] font-mono text-amber/40 hover:text-amber transition-colors"
-                >
+            {/* Post-name typewriter */}
+            {(phase === "post" || phase === "confirm") && post.displayed.map((line, i) => {
+              const isLast = i === post.displayed.length - 1;
+              return renderLine(line, `post-${i}` as unknown as number, isLast, !post.done && phase === "post");
+            })}
+
+            {/* Terminal confirm prompt */}
+            {phase === "confirm" && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2">
+                  <span className="text-cyan">&gt; Jack in?</span>
+                  <span className="text-text-dim">(Y/n)</span>
+                  <input ref={confirmRef} type="text" maxLength={3}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleConfirm((e.target as HTMLInputElement).value);
+                    }}
+                    className="w-8 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
+                    spellCheck={false} autoComplete="off" />
+                  <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+                </div>
+                <a href="/lore" onClick={(e) => e.stopPropagation()}
+                  className="text-[9px] font-mono text-amber/30 hover:text-amber transition-colors mt-2 inline-block">
                   [FULL TRANSMISSION — READ THE LORE]
                 </a>
               </motion.div>
