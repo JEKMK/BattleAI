@@ -162,24 +162,21 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
             )}
 
             {/* Typewriter lines */}
-            {phase !== "connecting" && displayedLines.map((line, i) => (
-              <div key={i} className={`mb-2 ${
-                line.type === "system" ? "text-neon-green/30 text-[10px] uppercase tracking-widest" :
-                line.type === "emphasis" ? "text-neon-green" :
-                "text-neon-green/70"
-              }`}>
-                {line.type === "sysop" && <span className="text-neon-green/40">SYSOP&gt; </span>}
-                {line.text}
-              </div>
-            ))}
-
-            {/* Blinking cursor while typing */}
-            {phase === "typing" && (
-              <div className="mt-1">
-                <span className="text-neon-green">&gt;</span>
-                <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5" />
-              </div>
-            )}
+            {phase !== "connecting" && displayedLines.map((line, i) => {
+              const isLastLine = i === displayedLines.length - 1;
+              const showCursor = isLastLine && phase === "typing";
+              return (
+                <div key={i} className={`mb-2 ${
+                  line.type === "system" ? "text-neon-green/30 text-[10px] uppercase tracking-widest" :
+                  line.type === "emphasis" ? "text-neon-green" :
+                  "text-neon-green/70"
+                }`}>
+                  {line.type === "sysop" && <span className="text-neon-green/40">SYSOP&gt; </span>}
+                  {line.text}
+                  {showCursor && <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5 align-middle" />}
+                </div>
+              );
+            })}
 
             {/* Name input */}
             {phase === "name" && !nameSubmitted && (
