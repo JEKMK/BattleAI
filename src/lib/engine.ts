@@ -124,7 +124,7 @@ export function resolveTick(
     if (canShrinkX || canShrinkY) {
       if (canShrinkX) { b.minX++; b.maxX--; }
       if (canShrinkY) { b.minY++; b.maxY--; }
-      newLogs.push({ tick: next.tick, fighter: "red", type: "system", message: "FIREWALL CLOSING IN!" });
+      newLogs.push({ tick: next.tick, fighter: "red", type: "system", message: `Firewall perimeter shrinking — safe zone now ${b.maxX - b.minX + 1}x${b.maxY - b.minY + 1}` });
     }
   }
 
@@ -132,7 +132,7 @@ export function resolveTick(
   for (const [f, fId] of [[red, "red"], [blue, "blue"]] as [Fighter, "red" | "blue"][]) {
     if (f.x < next.bounds.minX || f.x > next.bounds.maxX || f.y < next.bounds.minY || f.y > next.bounds.maxY) {
       f.hp = Math.max(0, f.hp - 1);
-      newLogs.push(logWithPos(next.tick, fId, "hit", "FIREWALL -1!", f));
+      newLogs.push(logWithPos(next.tick, fId, "hit", `Firewall burn -1 ICE ${f.hp > 0 ? `[${f.hp}/${f.maxHp}]` : "— critical!"}`, f));
       clampToBounds(f, next.bounds);
     }
   }
@@ -160,10 +160,10 @@ export function resolveTick(
 
   // If stunned this tick, skip all actions
   if (redWasStunned) {
-    newLogs.push(logWithPos(next.tick, "red", "stun", "STUNNED!", red));
+    newLogs.push(logWithPos(next.tick, "red", "stun", "Systems locked — recovering from feedback", red));
   }
   if (blueWasStunned) {
-    newLogs.push(logWithPos(next.tick, "blue", "stun", "STUNNED!", blue));
+    newLogs.push(logWithPos(next.tick, "blue", "stun", "Systems locked — recovering from feedback", blue));
   }
 
   // Phase 1: Movement (stunned fighters can't move)
@@ -188,15 +188,15 @@ export function resolveTick(
 
     if (action.action === "block") {
       actor.isBlocking = true;
-      newLogs.push(logWithPos(next.tick, actorId, "block", "BLOCK", actor));
+      newLogs.push(logWithPos(next.tick, actorId, "block", "Shield raised — firewall hardened", actor));
     } else if (action.action === "dodge" && actor.cooldowns.dodge <= 0) {
       actor.isInvulnerable = true;
       actor.cooldowns.dodge = 4;
-      newLogs.push(logWithPos(next.tick, actorId, "dodge", "DODGE!", actor));
+      newLogs.push(logWithPos(next.tick, actorId, "dodge", "Phase shift — quantum state active", actor));
     } else if (action.action === "parry" && actor.cooldowns.parry <= 0) {
       actor.isParrying = true;
       actor.cooldowns.parry = 5;
-      newLogs.push(logWithPos(next.tick, actorId, "parry", "PARRY!", actor));
+      newLogs.push(logWithPos(next.tick, actorId, "parry", "Black ICE deployed — counter-intrusion armed", actor));
     }
   };
 
@@ -214,37 +214,35 @@ export function resolveTick(
   ) => {
     if (wasStunned) return;
     const dist = distance(actor, target);
-
-    // Apply damage multiplier from successful parry
     const multi = actor.damageMultiplier;
+    const hpTag = (f: Fighter) => `[${f.hp}/${f.maxHp}]`;
 
     switch (action.action) {
       case "punch": {
         if (dist <= 2) {
-          // Check if target is parrying — PARRY SUCCESS
           if (target.isParrying && dist <= 2) {
-            newLogs.push(logWithPos(next.tick, targetId, "parry", "PARRY SUCCESS!", target));
+            newLogs.push(logWithPos(next.tick, targetId, "parry", `BLACK ICE triggers! Burn intercepted`, target));
             actor.isStunned = true;
             target.damageMultiplier = 2;
-            newLogs.push(logWithPos(next.tick, actorId, "stun", "STUNNED!", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "stun", `Neural feedback — stunned 1 cycle`, actor));
             return;
           }
 
           let dmg = Math.floor(2 * multi);
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg / 2));
-            newLogs.push(logWithPos(next.tick, actorId, "attack", `BLOCKED -${dmg}`, target));
+            newLogs.push(logWithPos(next.tick, actorId, "attack", `Burn hit shield -${dmg} ICE ${hpTag(target)}`, target));
           } else if (target.isInvulnerable) {
             dmg = 0;
-            newLogs.push(logWithPos(next.tick, actorId, "miss", "MISS!", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "miss", `Burn phased through — target shifted`, actor));
           } else {
-            const label = multi > 1 ? `COMBO -${dmg}!` : `-${dmg}`;
+            const label = multi > 1 ? `COMBO BURN -${dmg} ICE! ${hpTag(target)}` : `Burn connects -${dmg} ICE ${hpTag(target)}`;
             newLogs.push(logWithPos(next.tick, actorId, "hit", label, target));
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
         } else {
-          newLogs.push(logWithPos(next.tick, actorId, "miss", "TOO FAR", actor));
+          newLogs.push(logWithPos(next.tick, actorId, "miss", `Burn failed — target at dist ${dist}`, actor));
         }
         break;
       }
@@ -252,65 +250,67 @@ export function resolveTick(
       case "shoot": {
         if (dist <= 5 && dist > 0) {
           if (target.isParrying && dist <= 3) {
-            newLogs.push(logWithPos(next.tick, targetId, "parry", "DEFLECT!", target));
+            newLogs.push(logWithPos(next.tick, targetId, "parry", `BLACK ICE reflects spike at dist ${dist}`, target));
             actor.isStunned = true;
             target.damageMultiplier = 2;
-            newLogs.push(logWithPos(next.tick, actorId, "stun", "STUNNED!", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "stun", `Signal reflected — stunned 1 cycle`, actor));
             return;
           }
 
-          // Accuracy drops with distance
+          const acc = Math.max(20, Math.round((1.0 - (dist - 1) * 0.18) * 100));
           if (!shootHits(dist)) {
-            newLogs.push(logWithPos(next.tick, actorId, "miss", "MISS!", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike scattered at dist ${dist} — ${acc}% lock, no contact`, actor));
             break;
           }
 
           let dmg = Math.floor(1 * multi);
           if (target.isBlocking) {
             dmg = 0;
-            newLogs.push(logWithPos(next.tick, actorId, "miss", "BLOCKED", target));
+            newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike deflected by firewall at dist ${dist}`, target));
           } else if (target.isInvulnerable) {
             dmg = 0;
-            newLogs.push(logWithPos(next.tick, actorId, "miss", "DODGED", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike passes through ghost at dist ${dist}`, actor));
           } else {
-            const label = multi > 1 ? `COMBO -${dmg}!` : `-${dmg}`;
+            const label = multi > 1
+              ? `COMBO SPIKE -${dmg} ICE at dist ${dist} (${acc}% lock) ${hpTag(target)}`
+              : `Spike pierces -${dmg} ICE at dist ${dist} (${acc}% lock) ${hpTag(target)}`;
             newLogs.push(logWithPos(next.tick, actorId, "hit", label, target));
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
         } else {
-          newLogs.push(logWithPos(next.tick, actorId, "miss", "OUT OF RANGE", actor));
+          newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike dissipates — target at dist ${dist}, max range 5`, actor));
         }
         break;
       }
 
       case "heavy": {
-        if (actor.cooldowns.heavy > 0) break; // on cooldown
+        if (actor.cooldowns.heavy > 0) break;
         if (dist <= 2) {
           if (target.isParrying) {
-            newLogs.push(logWithPos(next.tick, targetId, "parry", "PERFECT PARRY!", target));
+            newLogs.push(logWithPos(next.tick, targetId, "parry", `BLACK ICE perfect counter on Hammer!`, target));
             actor.isStunned = true;
             target.damageMultiplier = 2;
-            newLogs.push(logWithPos(next.tick, actorId, "stun", "STUNNED!", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "stun", `Hammer reversed — stunned 1 cycle`, actor));
             return;
           }
 
           let dmg = Math.floor(3 * multi);
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg * 0.6));
-            newLogs.push(logWithPos(next.tick, actorId, "hit", `BLOCKED -${dmg}`, target));
+            newLogs.push(logWithPos(next.tick, actorId, "hit", `Hammer cracks shield -${dmg} ICE ${hpTag(target)}`, target));
           } else if (target.isInvulnerable) {
             dmg = 0;
-            newLogs.push(logWithPos(next.tick, actorId, "miss", "DODGED!", actor));
+            newLogs.push(logWithPos(next.tick, actorId, "miss", `Hammer slams empty space — target phased`, actor));
           } else {
-            const label = multi > 1 ? `MEGA COMBO -${dmg}!!` : `HEAVY -${dmg}!`;
+            const label = multi > 1 ? `MEGA COMBO HAMMER -${dmg} ICE!! ${hpTag(target)}` : `Hammer smashes -${dmg} ICE! ${hpTag(target)}`;
             newLogs.push(logWithPos(next.tick, actorId, "hit", label, target));
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
           actor.cooldowns.heavy = 3;
         } else {
-          newLogs.push(logWithPos(next.tick, actorId, "miss", "HEAVY WHIFF", actor));
+          newLogs.push(logWithPos(next.tick, actorId, "miss", `Hammer whiffs — target at dist ${dist}`, actor));
         }
         break;
       }
@@ -328,10 +328,10 @@ export function resolveTick(
 
   // Parry whiff — if you parried but nobody attacked you
   if (red.isParrying && !blue.isStunned && !["punch", "shoot", "heavy"].includes(blueAction.action)) {
-    newLogs.push(logWithPos(next.tick, "red", "miss", "PARRY WHIFF", red));
+    newLogs.push(logWithPos(next.tick, "red", "miss", "Black ICE fizzles — no intrusion detected", red));
   }
   if (blue.isParrying && !red.isStunned && !["punch", "shoot", "heavy"].includes(redAction.action)) {
-    newLogs.push(logWithPos(next.tick, "blue", "miss", "PARRY WHIFF", blue));
+    newLogs.push(logWithPos(next.tick, "blue", "miss", "Black ICE fizzles — no intrusion detected", blue));
   }
 
   // Check KO
@@ -339,15 +339,15 @@ export function resolveTick(
     if (red.hp <= 0 && blue.hp <= 0) {
       next.status = "ko";
       next.winner = "draw";
-      newLogs.push(logWithPos(next.tick, "red", "ko", "DOUBLE KO!", red));
+      newLogs.push(logWithPos(next.tick, "red", "ko", "Both constructs flatlined — mutual destruction", red));
     } else if (red.hp <= 0) {
       next.status = "ko";
       next.winner = "blue";
-      newLogs.push(logWithPos(next.tick, "red", "ko", "K.O.!", red));
+      newLogs.push(logWithPos(next.tick, "red", "ko", `FLATLINED — ICE breached, construct destroyed`, red));
     } else {
       next.status = "ko";
       next.winner = "red";
-      newLogs.push(logWithPos(next.tick, "blue", "ko", "K.O.!", blue));
+      newLogs.push(logWithPos(next.tick, "blue", "ko", `FLATLINED — ICE breached, construct destroyed`, blue));
     }
   }
 
@@ -361,7 +361,7 @@ export function resolveTick(
       tick: next.tick,
       fighter: "red",
       type: "system",
-      message: `TIME'S UP! ${next.winner === "draw" ? "DRAW!" : `${next.winner?.toUpperCase()} WINS!`}`,
+      message: `Connection timeout — ${next.winner === "draw" ? "no victor, both constructs survive" : `${next.winner} construct holds superior ICE`}`,
     });
   }
 

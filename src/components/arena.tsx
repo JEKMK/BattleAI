@@ -61,6 +61,41 @@ const TYPE_COLORS: Record<string, string> = {
   move: "#4a4a5e88",
 };
 
+/** Short text for floating above fighters — full message goes to the log */
+function shortenMessage(msg: string, type: string): string {
+  // Extract damage number
+  const dmgMatch = msg.match(/-(\d+)/);
+  const dmg = dmgMatch ? dmgMatch[1] : null;
+
+  if (type === "hit" && dmg) {
+    if (msg.includes("COMBO")) return `COMBO -${dmg}!`;
+    if (msg.includes("MEGA")) return `MEGA -${dmg}!!`;
+    if (msg.includes("Hammer")) return `HAMMER -${dmg}!`;
+    if (msg.includes("Spike")) return `SPIKE -${dmg}`;
+    if (msg.includes("Burn")) return `BURN -${dmg}`;
+    if (msg.includes("Firewall burn")) return `WALL -${dmg}`;
+    return `-${dmg}`;
+  }
+  if (type === "miss") {
+    if (msg.includes("scattered")) return "MISS";
+    if (msg.includes("firewall") || msg.includes("shield")) return "BLOCKED";
+    if (msg.includes("ghost") || msg.includes("phased") || msg.includes("shifted")) return "DODGED";
+    if (msg.includes("fizzles")) return "WHIFF";
+    if (msg.includes("dissipates") || msg.includes("failed")) return "TOO FAR";
+    return "MISS";
+  }
+  if (type === "block") return "SHIELD";
+  if (type === "dodge") return "GHOST";
+  if (type === "parry") {
+    if (msg.includes("triggers") || msg.includes("reflects") || msg.includes("perfect") || msg.includes("deflects")) return "BLACK ICE!";
+    return "B.ICE";
+  }
+  if (type === "stun") return "STUNNED";
+  if (type === "ko") return "FLATLINED";
+  if (type === "system") return "";
+  return msg.slice(0, 12);
+}
+
 export function Arena({ state }: ArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
@@ -109,12 +144,13 @@ export function Arena({ state }: ArenaProps) {
       const x = log.x ?? (log.fighter === "red" ? state.fighters[0].x : state.fighters[1].x);
       const y = log.y ?? (log.fighter === "red" ? state.fighters[0].y : state.fighters[1].y);
 
-      // Floating text
-      const size = log.type === "ko" ? 22 : log.type === "parry" || log.type === "stun" ? 16 : 13;
-      spawnFloatingText(x, y, log.message, color, size);
+      // Floating text — short version for arena, full message goes to log
+      const shortMsg = shortenMessage(log.message, log.type);
+      const size = log.type === "ko" ? 20 : log.type === "parry" || log.type === "stun" ? 14 : 12;
+      spawnFloatingText(x, y, shortMsg, color, size);
 
       // Projectiles for ranged attacks
-      if ((log.type === "hit" || log.type === "miss") && log.message.includes("-1")) {
+      if ((log.type === "hit" || log.type === "miss") && (log.message.includes("Spike") || log.message.includes("spike") || log.message.includes("scattered"))) {
         // This is a shot — spawn projectile
         const shooterIdx = log.fighter === "red" ? 0 : 1;
         const targetIdx = log.fighter === "red" ? 1 : 0;

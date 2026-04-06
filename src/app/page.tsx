@@ -51,7 +51,7 @@ const FACTIONS: Faction[] = ["anthropic", "google", "openai"];
 // Fixed order + lore tooltips for all actions and moves
 const ACTION_DEFS = [
   { key: "punch", color: "#ffb800", tip: "BURN — Close-range neural spike. 2 DMG, range 2. The backbone of any intrusion." },
-  { key: "shoot", color: "#39ff14", tip: "PING — Long-range data probe. 1 DMG, range 1-5. Accuracy drops with distance. Safe but weak." },
+  { key: "shoot", color: "#39ff14", tip: "SPIKE — Long-range ICE breaker. 1 DMG, range 1-5. Accuracy: 100% at dist 1, 35% at dist 5. Safe but weak." },
   { key: "heavy", color: "#ff8800", tip: "HAMMER — Overclocked memory dump. 3 DMG, range 2, cooldown 3. High voltage, high reward." },
   { key: "block", color: "#00f0ff", tip: "SHIELD — Firewall hardening. Halves melee DMG, blocks shots. Passive but predictable." },
   { key: "dodge", color: "#00d4ff", tip: "PHASE — Quantum state shift. Invulnerable 1 cycle. Cooldown 4. Disappear from the grid." },
