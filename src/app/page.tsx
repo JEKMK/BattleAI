@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
+import { Onboarding } from "@/components/onboarding";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, calculateScore, type GauntletState } from "@/lib/gauntlet";
@@ -347,6 +348,7 @@ export default function Home() {
 
   return (
     <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
+      <Onboarding />
       {/* Header */}
       <header className="border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
