@@ -9,7 +9,7 @@ import { SysopTerminal } from "@/components/sysop-terminal";
 import { BootLines } from "@/components/boot-sequence";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
-import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, calculateScore, type GauntletState } from "@/lib/gauntlet";
+import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, TUTORIAL_COUNT, calculateScore, type GauntletState } from "@/lib/gauntlet";
 
 interface FighterAnalytics {
   moves: Record<string, number>;
@@ -253,10 +253,17 @@ export default function Home() {
         if (next.currentLevel < GAUNTLET_LEVELS.length - 1) {
           next.currentLevel++;
         }
-        if (level.level >= 3 && !next.unlockedActions.includes("heavy")) {
-          next.unlockedActions = [...next.unlockedActions, "heavy"];
+        // Unlock actions from next level's allowedActions
+        const nextLevel = GAUNTLET_LEVELS[next.currentLevel];
+        if (nextLevel?.allowedActions) {
+          for (const action of nextLevel.allowedActions) {
+            if (!next.unlockedActions.includes(action)) {
+              next.unlockedActions = [...next.unlockedActions, action];
+            }
+          }
         }
-        if (level.level >= 5 && !next.unlockedActions.includes("parry")) {
+        // Unlock parry at gauntlet level 8 (Warez Daemon)
+        if (level.level >= 8 && !next.unlockedActions.includes("parry")) {
           next.unlockedActions = [...next.unlockedActions, "parry"];
         }
       } else if (isDraw) {
@@ -270,6 +277,7 @@ export default function Home() {
 
   const startBattleRaw = useCallback(async (overrides?: {
     botPrompt: string; botName: string; botFaction: Faction; botHp: number;
+    allowedActions?: string[]; arenaWidth?: number; arenaHeight?: number; playerHp?: number;
   }) => {
     if (isFighting) {
       abortRef.current?.abort();
@@ -295,6 +303,10 @@ export default function Home() {
         body.botName = overrides.botName;
         body.botFaction = overrides.botFaction;
         body.botHp = overrides.botHp;
+        if (overrides.allowedActions) body.allowedActions = overrides.allowedActions;
+        if (overrides.arenaWidth) body.arenaWidth = overrides.arenaWidth;
+        if (overrides.arenaHeight) body.arenaHeight = overrides.arenaHeight;
+        if (overrides.playerHp) body.playerHp = overrides.playerHp;
       } else {
         body.botType = "balanced";
         body.botFaction = "openai";
@@ -407,6 +419,10 @@ export default function Home() {
       botName: currentLevel.name,
       botFaction: currentLevel.faction,
       botHp: currentLevel.hp,
+      allowedActions: currentLevel.allowedActions,
+      arenaWidth: currentLevel.arenaWidth,
+      arenaHeight: currentLevel.arenaHeight,
+      playerHp: currentLevel.playerHp,
     });
   }, [currentLevel, startBattle]);
 
@@ -581,8 +597,8 @@ export default function Home() {
           {showGauntlet ? (
             <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
               <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                ICE Breaker Gauntlet
-                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="10 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities. Win to advance. Nobody's cracked them all.">?</span>
+                {gauntlet.currentLevel < TUTORIAL_COUNT ? "Training Protocol" : "ICE Breaker Gauntlet"}
+                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title={gauntlet.currentLevel < TUTORIAL_COUNT ? "Complete training to learn combat mechanics. Each level unlocks a new ability." : "15 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities."}>?</span>
               </label>
               <div className="space-y-1">
                 {GAUNTLET_LEVELS.map((lvl, i) => {
@@ -591,22 +607,46 @@ export default function Home() {
                   const isLocked = i > gauntlet.currentLevel;
                   const levelResult = gauntlet.history.filter(h => h.level === lvl.level);
                   const meta = FACTION_META[lvl.faction];
+                  const tutorialComplete = gauntlet.currentLevel >= TUTORIAL_COUNT;
+                  const isGauntletLevel = !lvl.isTutorial;
+
+                  // Hide gauntlet levels if tutorial not complete
+                  if (isGauntletLevel && !tutorialComplete) {
+                    if (i === TUTORIAL_COUNT) {
+                      return (
+                        <div key="locked" className="px-2 py-2 rounded-sm border border-border bg-bg-deep text-center">
+                          <span className="text-text-dim text-[9px] font-mono">LOCKED — Complete training to access the gauntlet</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }
 
                   const winEntry = levelResult.find(h => h.won && h.crackedPrompt);
                   const isExpanded = expandedLevel === lvl.level;
 
+                  // Section headers
+                  const showTutorialHeader = i === 0;
+                  const showGauntletHeader = i === TUTORIAL_COUNT && tutorialComplete;
+
                   return (
                     <div key={lvl.level}>
+                      {showTutorialHeader && (
+                        <div className="text-neon-green/30 text-[8px] font-mono uppercase tracking-widest mb-1">Training</div>
+                      )}
+                      {showGauntletHeader && (
+                        <div className="text-cyan/30 text-[8px] font-mono uppercase tracking-widest mt-2 mb-1">ICE Gauntlet</div>
+                      )}
                       <button
                         onClick={() => isBeaten ? setExpandedLevel(isExpanded ? null : lvl.level) : undefined}
                         className={`w-full px-2 py-1.5 rounded-sm border text-[9px] font-mono transition-all text-left ${
-                          isCurrent ? "border-magenta bg-bg-elevated" :
+                          isCurrent ? (lvl.isTutorial ? "border-neon-green bg-bg-elevated" : "border-magenta bg-bg-elevated") :
                           isBeaten ? "border-neon-green/30 bg-bg-deep hover:border-neon-green/60 cursor-pointer" :
                           "border-border bg-bg-deep opacity-40 cursor-default"
                         }`}>
                         <div className="flex items-center justify-between">
-                          <span className={`font-bold ${isCurrent ? "text-magenta" : isBeaten ? "text-neon-green" : "text-text-dim"}`}>
-                            {isBeaten ? "✓ " : isLocked ? "◆ " : "▸ "}{lvl.name}
+                          <span className={`font-bold ${isCurrent ? (lvl.isTutorial ? "text-neon-green" : "text-magenta") : isBeaten ? "text-neon-green" : "text-text-dim"}`}>
+                            {isBeaten ? "✓ " : isLocked ? "◆ " : "▸ "}{lvl.isTutorial ? lvl.title.replace("Training — ", "") : lvl.name}
                           </span>
                           <span className="text-text-dim">{lvl.hp} ICE</span>
                         </div>
@@ -659,6 +699,25 @@ export default function Home() {
             </div>
           )}
 
+          {/* Pre-battle SYSOP hint for tutorial levels */}
+          {showGauntlet && currentLevel?.preHint && !isFighting && !isOver && (
+            <div className="px-3 py-2 border-b border-neon-green/10">
+              <div className="text-neon-green/40 text-[8px] font-mono uppercase tracking-widest mb-1">SYSOP&gt;</div>
+              <p className="text-neon-green/70 text-[10px] font-mono leading-relaxed whitespace-pre-line">{currentLevel.preHint}</p>
+            </div>
+          )}
+
+          {/* Unlock message after winning */}
+          {showGauntlet && isOver && gameState?.winner === "red" && (() => {
+            const justBeat = GAUNTLET_LEVELS[gauntlet.currentLevel - 1];
+            return justBeat?.unlockMessage ? (
+              <div className="px-3 py-2 border-b border-amber/20">
+                <div className="text-amber text-[8px] font-mono uppercase tracking-widest mb-1 animate-pulse-glow">NEW UNLOCK</div>
+                <p className="text-amber/80 text-[10px] font-mono leading-relaxed whitespace-pre-line">{justBeat.unlockMessage}</p>
+              </div>
+            ) : null;
+          })()}
+
           {/* Action buttons */}
           <div className={`p-3 space-y-2 shrink-0 transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
             {showGauntlet ? (
@@ -669,10 +728,11 @@ export default function Home() {
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}
                   className={`w-full py-3 rounded-sm font-mono font-bold text-sm uppercase tracking-[0.4em] transition-all ${
                     isFighting ? "bg-magenta/20 border-2 border-magenta text-magenta" :
+                    currentLevel?.isTutorial ? "bg-neon-green/10 border-2 border-neon-green text-neon-green hover:bg-neon-green/20" :
                     "bg-cyan/10 border-2 border-cyan text-cyan hover:bg-cyan/20"
                   }`}
-                  style={{ boxShadow: isFighting ? "var(--glow-magenta)" : "var(--glow-cyan)" }}>
-                  {isFighting ? "ABORT" : currentLevel ? `LVL ${currentLevel.level} — JACK IN` : "GAUNTLET COMPLETE"}
+                  style={{ boxShadow: isFighting ? "var(--glow-magenta)" : currentLevel?.isTutorial ? "var(--glow-green)" : "var(--glow-cyan)" }}>
+                  {isFighting ? "ABORT" : currentLevel ? (currentLevel.isTutorial ? currentLevel.title.replace("Training — ", "TRAIN: ") : `LVL ${currentLevel.level - TUTORIAL_COUNT} — JACK IN`) : "GAUNTLET COMPLETE"}
                 </motion.button>
                 <button onClick={resetGauntlet} className="w-full text-[9px] font-mono text-text-dim hover:text-magenta transition-colors">
                   RESET GAUNTLET

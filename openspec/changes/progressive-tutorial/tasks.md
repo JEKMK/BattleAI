@@ -17,13 +17,13 @@
 - [x] Use dynamic `buildSystemRules` instead of static `SYSTEM_RULES`
 
 ## UI — Pre-battle hints
-- [ ] Show SYSOP pre-hint in left panel above JACK IN for tutorial levels
-- [ ] Show unlock message after winning a tutorial level ("NEW: You unlocked SPIKE!")
+- [x] Show SYSOP pre-hint in left panel above JACK IN for tutorial levels
+- [x] Show unlock message after winning a tutorial level ("NEW: You unlocked SPIKE!")
 
 ## UI — Tutorial gate
-- [ ] Hide gauntlet levels 6+ until tutorial complete (localStorage flag)
-- [ ] Show "LOCKED — Complete training" for hidden levels
-- [ ] After tutorial complete, unlock all and set flag
+- [x] Hide gauntlet levels 6+ until tutorial complete (localStorage flag)
+- [x] Show "LOCKED — Complete training" for hidden levels
+- [x] After tutorial complete, unlock all and set flag
 
 ## UI — Simplified combat log
 - [ ] Add `simplifiedLog` mode to combat-log component
