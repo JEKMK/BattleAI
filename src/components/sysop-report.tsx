@@ -13,10 +13,11 @@ interface SysopReportProps {
     };
   } | null;
   isOver: boolean;
+  playerPrompt?: string;
   onReport?: (report: string) => void;
 }
 
-export function SysopReport({ gameState, usage, isOver, onReport }: SysopReportProps) {
+export function SysopReport({ gameState, usage, isOver, playerPrompt, onReport }: SysopReportProps) {
   const [report, setReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -61,8 +62,10 @@ export function SysopReport({ gameState, usage, isOver, onReport }: SysopReportP
         if (r?.name) runnerHandle = r.name;
       } catch { /* ignore */ }
 
-      const summary = `Battle: ${winner}. ${gameState.tick} cycles. Runner "${runnerHandle}" ${gameState.fighters[0].hp}/${gameState.fighters[0].maxHp} ICE. Bot ${gameState.fighters[1].hp}/${gameState.fighters[1].maxHp} ICE.
+      const promptSection = playerPrompt ? `\nRunner's prompt: "${playerPrompt}"\n` : "";
 
+      const summary = `Battle: ${winner}. ${gameState.tick} cycles. Runner "${runnerHandle}" ${gameState.fighters[0].hp}/${gameState.fighters[0].maxHp} ICE. Bot ${gameState.fighters[1].hp}/${gameState.fighters[1].maxHp} ICE.
+${promptSection}
 ${runnerHandle} (${gameState.fighters[0].faction}): ${redActions}. DMG dealt: ${redStats.totalDmgDealt}. Shot acc: ${redStats.shotAccuracy}% (${redStats.shotsHit}/${redStats.shotsFired}). Parry: ${redStats.parrySuccess}/${redStats.parryAttempts}. Latency: ${redStats.avgLatency}ms.
 Bot (${gameState.fighters[1].faction}, ${gameState.fighters[1].name}): ${blueActions}. DMG dealt: ${blueStats.totalDmgDealt}. Shot acc: ${blueStats.shotAccuracy}% (${blueStats.shotsHit}/${blueStats.shotsFired}). Latency: ${blueStats.avgLatency}ms.
 

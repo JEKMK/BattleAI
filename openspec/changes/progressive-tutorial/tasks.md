@@ -26,14 +26,14 @@
 - [x] After tutorial complete, unlock all and set flag
 
 ## UI — Simplified combat log
-- [ ] Add `simplifiedLog` mode to combat-log component
-- [ ] Tutorial levels use simplified format: "[P] BURN -2 → [Bot 4/6]"
-- [ ] Full lore log unlocks after tutorial
+- [x] Add `simplifiedLog` mode to combat-log component
+- [x] Tutorial levels use simplified format: "[P] BURN -2 → [Bot 4/6]"
+- [x] Full lore log unlocks after tutorial
 
 ## SYSOP — Prompt analysis
-- [ ] Update SYSOP API prompt to include player's prompt text
-- [ ] Add instruction: analyze prompt → behavior mapping, give 1 concrete tip
-- [ ] Tutorial SYSOP reports focus on teaching, not just narration
+- [x] Update SYSOP API prompt to include player's prompt text
+- [x] Add instruction: analyze prompt → behavior mapping, give 1 concrete tip
+- [x] Tutorial SYSOP reports focus on teaching, not just narration
 
 ## Test
 - [ ] Fresh playthrough: tutorial levels appear, actions restricted correctly

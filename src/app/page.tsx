@@ -940,7 +940,7 @@ export default function Home() {
           )}
 
           {/* SYSOP Report */}
-          <SysopReport gameState={gameState} usage={usage} isOver={isOver} onReport={(report) => {
+          <SysopReport gameState={gameState} usage={usage} isOver={isOver} playerPrompt={prompt} onReport={(report) => {
             // Save SYSOP report to last gauntlet history entry
             setGauntlet((prev) => {
               if (prev.history.length === 0) return prev;
@@ -954,7 +954,7 @@ export default function Home() {
         {/* Right Panel — Intrusion Log */}
         <div key={`right-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
-            <CombatLog logs={gameState?.log ?? []} />
+            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
           </div>
         </div>
       </main>
