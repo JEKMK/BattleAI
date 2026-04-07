@@ -492,7 +492,7 @@ export default function Home() {
           )}
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
-          <div className="flex gap-1">
+          <div className="hidden lg:flex gap-1">
             <a href="/lore"
               className="text-[9px] font-mono px-2 py-0.5 rounded-sm border border-amber/40 text-amber hover:bg-amber/10 transition-all animate-pulse-glow">
               1 NEW MSG
@@ -507,22 +507,21 @@ export default function Home() {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-4 font-mono text-[10px]">
+        <div className="flex items-center gap-2 lg:gap-4 font-mono text-[10px]">
           {hydrated && showGauntlet && (
             <>
-              <span className="text-text-dim">SCORE</span>
+              <span className="hidden lg:inline text-text-dim">SCORE</span>
               <span className="text-amber tabular-nums font-bold">{gauntlet.totalScore.toLocaleString()}</span>
-              <span className="text-text-dim">RAM</span>
-              <span className="text-cyan tabular-nums">{gauntlet.ramUnlocked}</span>
-              <span className="text-text-dim">W/D/L</span>
-              <span className="text-neon-green tabular-nums">{gauntlet.wins}</span>
-              <span className="text-text-dim">/</span>
-              <span className="text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
-              <span className="text-text-dim">/</span>
-              <span className="text-magenta tabular-nums">{gauntlet.losses}</span>
-              <div className="h-3 w-px bg-border" />
-              <span className={`tabular-nums ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
-                FREE {FREE_BATTLE_LIMIT - freeBattles}/{FREE_BATTLE_LIMIT}
+              <span className="hidden lg:inline text-text-dim">RAM</span>
+              <span className="hidden lg:inline text-cyan tabular-nums">{gauntlet.ramUnlocked}</span>
+              <span className="hidden lg:inline text-text-dim">W/D/L</span>
+              <span className="hidden lg:inline text-neon-green tabular-nums">{gauntlet.wins}</span>
+              <span className="hidden lg:inline text-text-dim">/</span>
+              <span className="hidden lg:inline text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
+              <span className="hidden lg:inline text-text-dim">/</span>
+              <span className="hidden lg:inline text-magenta tabular-nums">{gauntlet.losses}</span>
+              <span className={`tabular-nums text-[9px] ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
+                {FREE_BATTLE_LIMIT - freeBattles} FREE
               </span>
             </>
           )}
@@ -539,7 +538,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 flex gap-0 overflow-hidden relative">
+      <main className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden relative">
         {/* Boot sequence overlay — covers entire main area */}
         <AnimatePresence>
           {bootPhase === "blackout" && (
@@ -584,7 +583,7 @@ export default function Home() {
 
 
         {/* Left Panel */}
-        <div key={`left-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
+        <div key={`left-${flickerKey}`} className={`w-full lg:w-72 shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-bg-panel overflow-y-auto ${isFighting ? "hidden lg:flex" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
           <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "ring-1 ring-cyan/30 bg-bg-panel" : ""}`}>
             <div className="flex items-center justify-between mb-2">
@@ -1020,7 +1019,7 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Intrusion Log */}
-        <div key={`right-${flickerKey}`} className={`w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
+        <div key={`right-${flickerKey}`} className={`hidden lg:flex w-72 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
             <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
           </div>

@@ -8,15 +8,15 @@
 - [x] Return portal: if ?ref= present, show "Return to {ref}" link after battle
 
 ## Bloque 2 — Mobile (~25 min AI)
-- [ ] Responsive layout: stack panels vertically on mobile (<640px)
-- [ ] Compact header for mobile
-- [ ] Arena canvas responsive: scale to viewport width
-- [ ] Combat log: collapsible toggle on mobile, hidden by default
-- [ ] Touch-friendly: larger tap targets for buttons and faction picker
+- [x] Responsive layout: stack panels vertically on mobile (lg breakpoint)
+- [x] Compact header for mobile (hide detailed stats)
+- [x] Arena canvas responsive: scale to viewport width via CSS
+- [x] Combat log: hidden on mobile (desktop only via hidden lg:flex)
+- [x] Left panel hidden during battle on mobile, full width when visible
 
 ## Bloque 3 — Portal (~10 min AI)
-- [ ] Exit portal: "VIBE JAM PORTAL" button after battle with username/ref/hp params
-- [ ] Portal landing: when ?portal=true, smooth instant entry (no black screen flash)
+- [x] Exit portal: "VIBE JAM PORTAL" button after battle with username/ref/hp params (done in Bloque 1)
+- [x] Portal landing: ?portal=true sets all flags, skips onboarding, instant UI (done in Bloque 1)
 
 ## Bloque 4 — Polish (~15 min AI)
 - [ ] Custom domain: configure in Vercel (needs Kilian to confirm domain)

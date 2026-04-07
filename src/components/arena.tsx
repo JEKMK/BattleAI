@@ -601,11 +601,10 @@ export function Arena({ state }: ArenaProps) {
   return (
     <canvas
       ref={canvasRef}
-      className="border border-border-bright rounded-sm"
+      className="border border-border-bright rounded-sm w-full max-w-[446px]"
       style={{
         imageRendering: "pixelated" as const,
-        width: `${CANVAS_W}px`,
-        height: `${CANVAS_H}px`,
+        aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
       }}
     />
   );
