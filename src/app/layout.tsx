@@ -27,6 +27,9 @@ export default function RootLayout({
       lang="en" suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script async src="https://jam.pieter.com/2026/widget.js"></script>
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

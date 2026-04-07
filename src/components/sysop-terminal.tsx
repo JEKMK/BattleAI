@@ -15,6 +15,7 @@ const CHAR_SPEED = 30;
 
 interface SysopTerminalProps {
   onDismiss: (runnerName: string) => void;
+  quickMode?: boolean; // skip typewriter, just name input + confirm
 }
 
 function useTypewriter(lines: { text: string; type: string }[], enabled: boolean) {
@@ -60,8 +61,8 @@ function useTypewriter(lines: { text: string; type: string }[], enabled: boolean
   return { displayed, done, skipToEnd };
 }
 
-export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
-  const [phase, setPhase] = useState<"connecting" | "intro" | "name" | "post" | "confirm">("connecting");
+export function SysopTerminal({ onDismiss, quickMode = false }: SysopTerminalProps) {
+  const [phase, setPhase] = useState<"connecting" | "intro" | "name" | "post" | "confirm">(quickMode ? "name" : "connecting");
   const [runnerName, setRunnerName] = useState("");
   const [nameSubmitted, setNameSubmitted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +70,7 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Intro typewriter
-  const intro = useTypewriter(SYSOP_LINES, phase === "intro" || phase === "name" || phase === "post" || phase === "confirm");
+  const intro = useTypewriter(SYSOP_LINES, !quickMode && (phase === "intro" || phase === "name" || phase === "post" || phase === "confirm"));
 
   // Post-name typewriter lines (generated after name is submitted)
   const [postLines, setPostLines] = useState<{ text: string; type: string }[]>([]);
@@ -114,8 +115,12 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
       { text: `${name}. The matrix will remember that name — one way or another.`, type: "sysop" },
       { text: "Show it what you've got, console cowboy.", type: "emphasis" },
     ]);
-    setTimeout(() => setPhase("post"), 400);
-  }, [runnerName]);
+    if (quickMode) {
+      setTimeout(() => setPhase("confirm"), 200);
+    } else {
+      setTimeout(() => setPhase("post"), 400);
+    }
+  }, [runnerName, quickMode]);
 
   const handleConfirm = useCallback((value: string) => {
     const v = value.trim().toLowerCase();
@@ -196,7 +201,13 @@ export function SysopTerminal({ onDismiss }: SysopTerminalProps) {
 
             {/* Name input */}
             {phase === "name" && !nameSubmitted && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2" onClick={(e) => e.stopPropagation()}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={quickMode ? "" : "mt-2"} onClick={(e) => e.stopPropagation()}>
+                {quickMode && (
+                  <div className="text-neon-green/70 mb-2">
+                    <span className="text-neon-green/40">SYSOP&gt; </span>
+                    AI vs AI. Your prompt is your weapon. First — who are you?
+                  </div>
+                )}
                 <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
                 <div className="flex items-center gap-2">
                   <span className="text-neon-green">&gt;</span>

@@ -185,6 +185,9 @@ export default function Home() {
   const [hasBooted, setHasBooted] = useState(false);
   const [flickerKey, setFlickerKey] = useState(0); // increment to re-trigger CSS animations
   const [runnerName, setRunnerName] = useState<string | null>(null);
+  const [freeBattles, setFreeBattles] = useState(0);
+  const FREE_BATTLE_LIMIT = 20;
+  const [portalRef, setPortalRef] = useState<string | null>(null); // game they came from
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -192,22 +195,54 @@ export default function Home() {
     if (saved) {
       try { setGauntlet(JSON.parse(saved)); } catch { /* ignore */ }
     }
-    // Show onboarding if first visit
-    const onboardingDone = localStorage.getItem("battleai_onboarding_done");
-    const isFirstVisit = !onboardingDone;
-    if (isFirstVisit) {
-      setShowOnboarding(true);
+
+    // Portal detection
+    const params = new URLSearchParams(window.location.search);
+    const isPortal = params.get("portal") === "true";
+    const portalUsername = params.get("username");
+    const portalRefParam = params.get("ref");
+    if (portalRefParam) setPortalRef(portalRefParam);
+
+    if (isPortal) {
+      // Portal entry — skip ALL onboarding, instant play
+      const name = (portalUsername || "RUNNER").toUpperCase();
+      setRunnerName(name);
+      localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
+      localStorage.setItem("battleai_onboarding_done", "1");
+      localStorage.setItem("battleai_first_boot", "1");
+      setHasBooted(true);
+      setUiVisible(true);
+      setShowGauntlet(true);
+      setHydrated(true);
+      // Auto-start after a brief render
+      setTimeout(() => {
+        const lvl = GAUNTLET_LEVELS[0];
+        if (lvl) {
+          // Will trigger via startGauntletBattle after state settles
+        }
+      }, 500);
     } else {
-      setUiVisible(true); // returning user — show UI immediately
+      // Normal flow
+      const onboardingDone = localStorage.getItem("battleai_onboarding_done");
+      const isFirstVisit = !onboardingDone;
+      if (isFirstVisit) {
+        setShowOnboarding(true);
+      } else {
+        setUiVisible(true);
+      }
+      const booted = localStorage.getItem("battleai_first_boot");
+      if (booted) setHasBooted(true);
+      // Load runner name
+      try {
+        const runner = JSON.parse(localStorage.getItem("battleai_runner") || "null");
+        if (runner?.name) setRunnerName(runner.name);
+      } catch { /* ignore */ }
     }
-    // Check if first boot already happened
-    const booted = localStorage.getItem("battleai_first_boot");
-    if (booted) setHasBooted(true);
-    // Load runner name
-    try {
-      const runner = JSON.parse(localStorage.getItem("battleai_runner") || "null");
-      if (runner?.name) setRunnerName(runner.name);
-    } catch { /* ignore */ }
+
+    // Load free battle counter
+    const battles = parseInt(localStorage.getItem("battleai_free_battles") || "0", 10);
+    setFreeBattles(battles);
+
     setShowGauntlet(true);
     setHydrated(true);
   }, []);
@@ -284,6 +319,11 @@ export default function Home() {
       setIsFighting(false);
       return;
     }
+
+    // Increment free battle counter
+    const newCount = freeBattles + 1;
+    setFreeBattles(newCount);
+    localStorage.setItem("battleai_free_battles", String(newCount));
 
     setIsFighting(true);
     setGameState(null);
@@ -392,6 +432,10 @@ export default function Home() {
 
   // Boot sequence wrapper for battles
   const startBattle = useCallback((overrides?: Parameters<typeof startBattleRaw>[0]) => {
+    // Free tier check (soft block during jam — just warn)
+    if (freeBattles >= FREE_BATTLE_LIMIT) {
+      // During jam: allow but warn. Post-jam: hard block here
+    }
     setSpotlightPrompt(false);
     pendingBattleRef.current = overrides;
     bootPurposeRef.current = "battle";
@@ -476,6 +520,10 @@ export default function Home() {
               <span className="text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
               <span className="text-text-dim">/</span>
               <span className="text-magenta tabular-nums">{gauntlet.losses}</span>
+              <div className="h-3 w-px bg-border" />
+              <span className={`tabular-nums ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
+                FREE {FREE_BATTLE_LIMIT - freeBattles}/{FREE_BATTLE_LIMIT}
+              </span>
             </>
           )}
           {gameState && (
@@ -529,7 +577,7 @@ export default function Home() {
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
             >
-              <SysopTerminal onDismiss={enterMatrix} />
+              <SysopTerminal onDismiss={enterMatrix} quickMode />
             </motion.div>
           )}
         </AnimatePresence>
@@ -949,6 +997,26 @@ export default function Home() {
               return next;
             });
           }} />
+
+          {/* Vibe Jam Portal */}
+          {isOver && (
+            <div className="w-full max-w-lg flex gap-2 mt-2">
+              <a
+                href={`https://jam.pieter.com/portal/2026?username=${encodeURIComponent(runnerName || "RUNNER")}&ref=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "battleia.vercel.app")}&hp=${gameState ? Math.round((gameState.fighters[0].hp / gameState.fighters[0].maxHp) * 100) : 50}`}
+                className="flex-1 text-center py-2 rounded-sm border border-purple/40 text-purple text-[10px] font-mono uppercase tracking-wider hover:bg-purple/10 transition-all"
+              >
+                ◈ VIBE JAM PORTAL →
+              </a>
+              {portalRef && (
+                <a
+                  href={`https://${portalRef}`}
+                  className="flex-1 text-center py-2 rounded-sm border border-cyan/40 text-cyan text-[10px] font-mono uppercase tracking-wider hover:bg-cyan/10 transition-all"
+                >
+                  ← RETURN TO {portalRef}
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right Panel — Intrusion Log */}

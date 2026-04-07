@@ -1,11 +1,11 @@
 # Tasks: Vibe Jam 2026 Submission
 
 ## Bloque 1 — Ship Blockers (~20 min AI)
-- [ ] Free tier: localStorage battle counter, show remaining in header, block at 20 with message
-- [ ] Widget: add jam.pieter.com widget script to layout.tsx head
-- [ ] Portal start: detect ?portal=true, extract username/ref, skip onboarding, auto-start
-- [ ] Fast onboarding: first visit without portal — name input only, no typewriter, <5s to play
-- [ ] Return portal: if ?ref= present, show "Return to {ref}" link after battle
+- [x] Free tier: localStorage battle counter, show remaining in header, block at 20 with message
+- [x] Widget: add jam.pieter.com widget script to layout.tsx head
+- [x] Portal start: detect ?portal=true, extract username/ref, skip onboarding, auto-start
+- [x] Fast onboarding: first visit without portal — name input only, no typewriter, <5s to play
+- [x] Return portal: if ?ref= present, show "Return to {ref}" link after battle
 
 ## Bloque 2 — Mobile (~25 min AI)
 - [ ] Responsive layout: stack panels vertically on mobile (<640px)
