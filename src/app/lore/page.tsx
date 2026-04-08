@@ -117,6 +117,15 @@ export default function LorePage() {
   const intro = useTypewriter(INTRO_SEQUENCE, true);
   const post = useTypewriter(POST_NAME_SEQUENCE, phase === "post" || phase === "ready");
 
+  // ESC to go back to game
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") router.push("/");
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [router]);
+
   // Scroll to bottom on new content
   useEffect(() => {
     if (scrollRef.current) {
@@ -177,7 +186,7 @@ export default function LorePage() {
             <span className="text-cyan text-xs font-mono animate-flicker">&gt;_</span>
             <span className="text-cyan text-xs font-mono tracking-widest">ONO-SENDAI CYBERSPACE VII</span>
           </div>
-          <span className="text-text-dim text-[9px] font-mono">CHIBA CITY NODE // ENCRYPTED</span>
+          <span className="text-text-dim text-[9px] font-mono">ESC TO EXIT // CHIBA CITY NODE</span>
         </div>
 
         {/* Terminal body */}
@@ -247,23 +256,30 @@ export default function LorePage() {
           {/* Jack In button */}
           {phase === "ready" && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="mt-6 text-center"
+              className="mt-4"
             >
-              <motion.button
-                onClick={jackIn}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-12 py-3 border-2 border-cyan text-cyan font-mono font-bold text-sm uppercase tracking-[0.5em] rounded-sm bg-cyan/5 hover:bg-cyan/15 transition-all"
-                style={{ boxShadow: "var(--glow-cyan)" }}
-              >
-                JACK IN
-              </motion.button>
-              <p className="text-text-dim text-[9px] font-mono mt-3">
-                // The matrix doesn&apos;t wait. Neither should you.
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-cyan">&gt; Jack in?</span>
+                <span className="text-text-dim">(Y/n)</span>
+                <input
+                  type="text"
+                  maxLength={3}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const v = (e.target as HTMLInputElement).value.trim().toLowerCase();
+                      if (v === "" || v === "y" || v === "yes") jackIn();
+                    }
+                  }}
+                  className="w-8 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+              </div>
             </motion.div>
           )}
         </div>
