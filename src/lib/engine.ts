@@ -10,11 +10,14 @@ import {
 
 export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameState {
   // Spawn at different Y positions to force 2D movement
-  const redY = 1 + Math.floor(Math.random() * (config.arenaHeight - 2));
-  let blueY = 1 + Math.floor(Math.random() * (config.arenaHeight - 2));
-  // Ensure they're at least 2 apart vertically
-  while (Math.abs(blueY - redY) < 2) {
-    blueY = 1 + Math.floor(Math.random() * (config.arenaHeight - 2));
+  const yRange = Math.max(1, config.arenaHeight - 2);
+  const minSeparation = Math.min(2, yRange); // Can't require 2 apart if arena is too small
+  const redY = 1 + Math.floor(Math.random() * yRange);
+  let blueY = 1 + Math.floor(Math.random() * yRange);
+  let attempts = 0;
+  while (Math.abs(blueY - redY) < minSeparation && attempts < 20) {
+    blueY = 1 + Math.floor(Math.random() * yRange);
+    attempts++;
   }
 
   const playerHp = config.playerHp ?? config.maxHp;
