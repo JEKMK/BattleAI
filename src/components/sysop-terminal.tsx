@@ -314,7 +314,7 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
           </div>
 
           {/* Body */}
-          <div ref={scrollRef} className="p-4 font-mono text-sm leading-relaxed h-[320px] overflow-y-auto relative" onClick={() => { inputRef.current?.focus(); confirmRef.current?.focus(); }}
+          <div ref={scrollRef} className="p-4 font-mono text-sm leading-relaxed h-[320px] overflow-y-auto relative" onClick={() => { inputRef.current?.focus(); confirmRef.current?.focus(); }}>
             {/* Boot sequence — fast code lines */}
             {phase === "boot" && (
               <div className="space-y-0.5">
