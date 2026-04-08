@@ -62,6 +62,61 @@ function useTypewriter(lines: { text: string; type: string }[], enabled: boolean
   return { displayed, done, skipToEnd };
 }
 
+const IDLE_TAUNTS = [
+  "Still there, meat brain? Type your name.",
+  "The matrix doesn't wait forever.",
+  "I've seen ICE load faster than you type.",
+  "Any name. Even 'anonymous' works. Just type.",
+  "Running out of patience here, console cowboy.",
+];
+
+function NameInput({ quickMode, inputRef, runnerName, setRunnerName, submitName }: {
+  quickMode: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  runnerName: string;
+  setRunnerName: (v: string) => void;
+  submitName: () => void;
+}) {
+  const [taunt, setTaunt] = useState<string | null>(null);
+
+  useEffect(() => {
+    let tauntIdx = 0;
+    const timer = setInterval(() => {
+      if (tauntIdx < IDLE_TAUNTS.length) {
+        setTaunt(IDLE_TAUNTS[tauntIdx]);
+        tauntIdx++;
+      }
+    }, 6000); // Every 6 seconds of idle
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={quickMode ? "" : "mt-2"} onClick={(e) => e.stopPropagation()}>
+      {quickMode && (
+        <div className="text-neon-green/70 mb-2">
+          <span className="text-neon-green/40">SYSOP&gt; </span>
+          AI vs AI. Your prompt is your weapon. First — who are you?
+        </div>
+      )}
+      <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
+      <div className="flex items-center gap-1">
+        <span className="text-neon-green">&gt;</span>
+        <input ref={inputRef} type="text" value={runnerName}
+          onChange={(e) => setRunnerName(e.target.value.slice(0, 20).toUpperCase())}
+          onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
+          className="flex-1 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent"
+          spellCheck={false} autoComplete="off" />
+        <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+      </div>
+      {taunt && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-text-dim text-[9px] font-mono mt-2 italic">
+          <span className="text-neon-green/30">SYSOP&gt; </span>{taunt}
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
 export function SysopTerminal({ onDismiss, quickMode = false, existingName }: SysopTerminalProps) {
   // All modes start with boot, then branch
   const [phase, setPhase] = useState<"boot" | "connecting" | "intro" | "name" | "post" | "confirm">("boot");
@@ -151,16 +206,9 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
     setRunnerName(name);
     setNameSubmitted(true);
     localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
-    setPostLines([
-      { text: `${name}. The matrix will remember that name — one way or another.`, type: "sysop" },
-      { text: "Show it what you've got, console cowboy.", type: "emphasis" },
-    ]);
-    if (quickMode) {
-      setTimeout(() => setPhase("confirm"), 200);
-    } else {
-      setTimeout(() => setPhase("post"), 400);
-    }
-  }, [runnerName, quickMode]);
+    // Go straight to Jack in? prompt
+    setTimeout(() => setPhase("confirm"), 200);
+  }, [runnerName]);
 
   const handleConfirm = useCallback((value: string) => {
     const v = value.trim().toLowerCase();
@@ -262,23 +310,13 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
 
             {/* Name input */}
             {phase === "name" && !nameSubmitted && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={quickMode ? "" : "mt-2"} onClick={(e) => e.stopPropagation()}>
-                {quickMode && (
-                  <div className="text-neon-green/70 mb-2">
-                    <span className="text-neon-green/40">SYSOP&gt; </span>
-                    AI vs AI. Your prompt is your weapon. First — who are you?
-                  </div>
-                )}
-                <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
-                <div className="flex items-center gap-2">
-                  <span className="text-neon-green">&gt;</span>
-                  <input ref={inputRef} type="text" value={runnerName}
-                    onChange={(e) => setRunnerName(e.target.value.slice(0, 20))}
-                    onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
-                    className="flex-1 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
-                    placeholder="ENTER YOUR HANDLE..." spellCheck={false} autoComplete="off" />
-                </div>
-              </motion.div>
+              <NameInput
+                quickMode={quickMode}
+                inputRef={inputRef}
+                runnerName={runnerName}
+                setRunnerName={setRunnerName}
+                submitName={submitName}
+              />
             )}
 
             {/* Name submitted echo */}
@@ -301,11 +339,16 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
             {/* Terminal confirm prompt */}
             {phase === "confirm" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3" onClick={(e) => e.stopPropagation()}>
-                {/* Welcome back line for returning users */}
-                {existingName && !nameSubmitted && (
+                {/* SYSOP acknowledgement */}
+                {existingName && !nameSubmitted ? (
                   <div className="text-neon-green/70 mb-2">
                     <span className="text-neon-green/40">SYSOP&gt; </span>
                     {existingName}. Back for more, console cowboy?
+                  </div>
+                ) : nameSubmitted && (
+                  <div className="text-neon-green/70 mb-2">
+                    <span className="text-neon-green/40">SYSOP&gt; </span>
+                    {runnerName}. The matrix will remember that name.
                   </div>
                 )}
                 <div className="flex items-center gap-2">

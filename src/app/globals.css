@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Interactive elements — pointer cursor */
+button, a, [role="button"], input[type="text"], textarea, select {
+  cursor: pointer;
+}
+input[type="text"], textarea {
+  cursor: text;
+}
+
 :root {
   /* Cyberpunk Retro Palette — Blade Runner / Neuromancer / Ghost in the Shell */
   --bg-deep: #0a0a0f;
