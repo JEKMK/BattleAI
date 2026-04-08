@@ -63,14 +63,48 @@ function useTypewriter(lines: { text: string; type: string }[], enabled: boolean
 }
 
 export function SysopTerminal({ onDismiss, quickMode = false, existingName }: SysopTerminalProps) {
-  // If we already have a name, skip straight to confirm
-  const initialPhase = existingName ? "confirm" : (quickMode ? "name" : "connecting");
-  const [phase, setPhase] = useState<"connecting" | "intro" | "name" | "post" | "confirm">(initialPhase);
+  // All modes start with boot, then branch
+  const [phase, setPhase] = useState<"boot" | "connecting" | "intro" | "name" | "post" | "confirm">("boot");
   const [runnerName, setRunnerName] = useState(existingName || "");
   const [nameSubmitted, setNameSubmitted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Boot sequence — fast scrolling code lines
+  const [bootLines, setBootLines] = useState<string[]>([]);
+  const [bootDone, setBootDone] = useState(false);
+
+  const BOOT_CODE = [
+    "LOADING ONO-SENDAI CYBERSPACE VII...",
+    "MEM CHECK: 0x00FF → 0xFFFF [OK]",
+    "NEURAL INTERFACE: ACTIVE",
+    "CHIBA CITY RELAY NODE: CONNECTED",
+    "ICE SCANNER: ONLINE",
+    "SYSOP KERNEL: v∞.7.1",
+    "COMBAT PROTOCOL: LOADED",
+    "ESTABLISHING SECURE CHANNEL...",
+  ];
+
+  useEffect(() => {
+    if (phase !== "boot") return;
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < BOOT_CODE.length) {
+        setBootLines((prev) => [...prev, BOOT_CODE[i]]);
+        i++;
+      } else {
+        clearInterval(interval);
+        setBootDone(true);
+        setTimeout(() => {
+          if (existingName) setPhase("confirm");
+          else if (quickMode) setPhase("name");
+          else setPhase("connecting");
+        }, 400);
+      }
+    }, 80); // Fast — 80ms per line
+    return () => clearInterval(interval);
+  }, [phase, existingName, quickMode]);
 
   // Intro typewriter
   const intro = useTypewriter(SYSOP_LINES, !quickMode && (phase === "intro" || phase === "name" || phase === "post" || phase === "confirm"));
@@ -91,16 +125,19 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
     if (intro.done && phase === "intro") setPhase("name");
   }, [intro.done, phase]);
 
-  // Focus name input
+  // Focus inputs when phases change
   useEffect(() => {
-    if (phase === "name" && inputRef.current) inputRef.current.focus();
+    if (phase === "name") {
+      setTimeout(() => inputRef.current?.focus(), 200);
+    } else if (phase === "confirm") {
+      setTimeout(() => confirmRef.current?.focus(), 200);
+    }
   }, [phase]);
 
   // Post typewriter done → confirm prompt
   useEffect(() => {
     if (post.done && phase === "post") {
       setPhase("confirm");
-      setTimeout(() => confirmRef.current?.focus(), 100);
     }
   }, [post.done, phase]);
 
@@ -133,10 +170,18 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
   }, [runnerName, onDismiss]);
 
   const skipAll = useCallback(() => {
+    if (phase === "boot") {
+      setBootLines(BOOT_CODE);
+      setBootDone(true);
+      if (existingName) setPhase("confirm");
+      else if (quickMode) setPhase("name");
+      else setPhase("connecting");
+      return;
+    }
     if (phase === "connecting") { setPhase("intro"); return; }
     if (phase === "intro") { intro.skipToEnd(); return; }
     if (phase === "post") { post.skipToEnd(); return; }
-  }, [phase, intro, post]);
+  }, [phase, intro, post, existingName, quickMode]);
 
   const renderLine = (line: { text: string; type: string }, i: number, isLast: boolean, showCursor: boolean) => (
     <div key={i} className={`mb-2 ${
@@ -156,7 +201,7 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.3 } }}
       className="w-full h-full flex flex-col items-center justify-center"
-      onClick={phase === "intro" || phase === "connecting" || phase === "post" ? skipAll : undefined}
+      onClick={phase === "boot" || phase === "intro" || phase === "connecting" || phase === "post" ? skipAll : undefined}
     >
       <div className="w-full max-w-lg px-4">
         <div className="bg-bg-deep border border-neon-green/20 rounded-sm overflow-hidden relative crt-terminal"
@@ -174,13 +219,26 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
               <span className="text-neon-green/60 text-[9px] font-mono">●</span>
               <span className="text-neon-green/40 text-[9px] font-mono tracking-widest">SYSOP TERMINAL</span>
             </div>
-            <span className={`text-[8px] font-mono ${phase === "connecting" ? "text-amber/50 animate-pulse" : "text-neon-green/30"}`}>
-              {phase === "connecting" ? "CONNECTING..." : "CONNECTED"}
+            <span className={`text-[8px] font-mono ${phase === "boot" || phase === "connecting" ? "text-amber/50 animate-pulse" : "text-neon-green/30"}`}>
+              {phase === "boot" ? "BOOTING..." : phase === "connecting" ? "CONNECTING..." : "CONNECTED"}
             </span>
           </div>
 
           {/* Body */}
           <div ref={scrollRef} className="p-4 font-mono text-sm leading-relaxed h-[320px] overflow-y-auto relative">
+            {/* Boot sequence — fast code lines */}
+            {phase === "boot" && (
+              <div className="space-y-0.5">
+                {bootLines.map((line, i) => (
+                  <div key={i} className="text-neon-green/30 text-[9px] uppercase tracking-wider boot-flicker-in">
+                    {line}
+                  </div>
+                ))}
+                {!bootDone && <span className="inline-block w-2 h-3 bg-neon-green/50 animate-pulse" />}
+                {bootDone && <div className="text-neon-green text-[10px] mt-2 font-bold">SYSTEM READY</div>}
+              </div>
+            )}
+
             {/* Connecting */}
             {phase === "connecting" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full gap-3">
