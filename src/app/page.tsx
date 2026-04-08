@@ -190,6 +190,7 @@ export default function Home() {
   const [portalRef, setPortalRef] = useState<string | null>(null); // game they came from
   const [portalParams, setPortalParams] = useState<string>(""); // all original portal params to forward back
   const [autoStartPortal, setAutoStartPortal] = useState(false);
+  const [analyticsFirstTime, setAnalyticsFirstTime] = useState(false);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -243,6 +244,9 @@ export default function Home() {
       const booted = localStorage.getItem("battleai_first_boot");
       if (booted) setHasBooted(true);
     }
+
+    // Check if analytics has been seen
+    if (!localStorage.getItem("battleai_analytics_seen")) setAnalyticsFirstTime(true);
 
     // Load free battle counter
     const battles = parseInt(localStorage.getItem("battleai_free_battles") || "0", 10);
@@ -945,10 +949,20 @@ export default function Home() {
                   onClick={() => {
                     const el = document.getElementById("analytics-panels");
                     if (el) el.classList.toggle("hidden");
+                    if (analyticsFirstTime) {
+                      localStorage.setItem("battleai_analytics_seen", "1");
+                      setAnalyticsFirstTime(false);
+                    }
                   }}
-                  className="text-[9px] font-mono text-text-dim hover:text-cyan transition-colors"
+                  className={`text-[9px] font-mono transition-all ${
+                    analyticsFirstTime
+                      ? "text-cyan border border-cyan/40 rounded-sm px-3 py-1.5 bg-cyan/10 hover:bg-cyan/20 animate-pulse-glow"
+                      : "text-text-dim hover:text-cyan"
+                  }`}
                 >
-                  ▸ ANALYTICS
+                  {analyticsFirstTime
+                    ? "◈ VIEW BATTLE ANALYTICS — SEE WHAT YOUR PROMPT DID"
+                    : "▸ ANALYTICS"}
                 </button>
                 <button
                   onClick={() => {
