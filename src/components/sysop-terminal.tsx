@@ -243,6 +243,13 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
             {/* Terminal confirm prompt */}
             {phase === "confirm" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3" onClick={(e) => e.stopPropagation()}>
+                {/* Welcome back line for returning users */}
+                {existingName && !nameSubmitted && (
+                  <div className="text-neon-green/70 mb-2">
+                    <span className="text-neon-green/40">SYSOP&gt; </span>
+                    {existingName}. Back for more, console cowboy?
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <span className="text-cyan">&gt; Jack in?</span>
                   <span className="text-text-dim">(Y/n)</span>
