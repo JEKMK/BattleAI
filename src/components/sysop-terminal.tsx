@@ -90,24 +90,62 @@ function NameInput({ quickMode, inputRef, runnerName, setRunnerName, submitName 
     return () => clearInterval(timer);
   }, []);
 
+  const [introLine, setIntroLine] = useState("");
+  const [questionLine, setQuestionLine] = useState("");
+  const [showInput, setShowInput] = useState(false);
+
+  // Typewrite the intro and question lines
+  useEffect(() => {
+    const lines = quickMode
+      ? ["AI vs AI. Your prompt is your weapon. First — who are you?", "What do they call you, runner?"]
+      : ["What do they call you, runner?"];
+
+    let lineIdx = 0;
+    let charIdx = 0;
+    const setters = quickMode ? [setIntroLine, setQuestionLine] : [setQuestionLine];
+
+    const timer = setInterval(() => {
+      if (lineIdx >= lines.length) {
+        clearInterval(timer);
+        setShowInput(true);
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+      const line = lines[lineIdx];
+      if (charIdx < line.length) {
+        setters[lineIdx]((prev: string) => line.slice(0, charIdx + 1));
+        charIdx++;
+      } else {
+        lineIdx++;
+        charIdx = 0;
+      }
+    }, 20);
+    return () => clearInterval(timer);
+  }, [quickMode, inputRef]);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={quickMode ? "" : "mt-2"} onClick={(e) => e.stopPropagation()}>
-      {quickMode && (
+      {quickMode && introLine && (
         <div className="text-neon-green/70 mb-2">
           <span className="text-neon-green/40">SYSOP&gt; </span>
-          AI vs AI. Your prompt is your weapon. First — who are you?
+          {introLine}
         </div>
       )}
-      <div className="text-amber mb-2">SYSOP&gt; What do they call you, runner?</div>
-      <div className="flex items-center gap-1">
-        <span className="text-neon-green">&gt;</span>
-        <input ref={inputRef} type="text" value={runnerName}
-          onChange={(e) => setRunnerName(e.target.value.slice(0, 20).toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
-          className="flex-1 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent"
-          spellCheck={false} autoComplete="off" />
-        <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
-      </div>
+      {questionLine && (
+        <div className="text-amber mb-2">SYSOP&gt; {questionLine}</div>
+      )}
+      {showInput && (
+        <div className="flex items-center">
+          <span className="text-neon-green mr-1">&gt;</span>
+          <span className="text-neon-green font-mono text-sm">{runnerName}</span>
+          <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+          <input ref={inputRef} type="text" value={runnerName}
+            onChange={(e) => setRunnerName(e.target.value.slice(0, 20).toUpperCase())}
+            onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
+            className="absolute opacity-0 w-0 h-0"
+            spellCheck={false} autoComplete="off" />
+        </div>
+      )}
       {taunt && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-text-dim text-[9px] font-mono mt-2 italic">
           <span className="text-neon-green/30">SYSOP&gt; </span>{taunt}
