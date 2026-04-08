@@ -188,6 +188,8 @@ export default function Home() {
   const [freeBattles, setFreeBattles] = useState(0);
   const FREE_BATTLE_LIMIT = 20;
   const [portalRef, setPortalRef] = useState<string | null>(null); // game they came from
+  const [portalParams, setPortalParams] = useState<string>(""); // all original portal params to forward back
+  const [autoStartPortal, setAutoStartPortal] = useState(false);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -202,10 +204,19 @@ export default function Home() {
     const portalUsername = params.get("username");
     const portalRefParam = params.get("ref");
     if (portalRefParam) setPortalRef(portalRefParam);
+    // Save all portal params for forwarding back
+    if (isPortal) setPortalParams(params.toString());
+
+    // Load existing runner name from localStorage
+    let existingName: string | null = null;
+    try {
+      const runner = JSON.parse(localStorage.getItem("battleai_runner") || "null");
+      if (runner?.name) existingName = runner.name;
+    } catch { /* ignore */ }
 
     if (isPortal) {
       // Portal entry — skip ALL onboarding, instant play
-      const name = (portalUsername || "RUNNER").toUpperCase();
+      const name = (portalUsername || existingName || "RUNNER").toUpperCase();
       setRunnerName(name);
       localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
       localStorage.setItem("battleai_onboarding_done", "1");
@@ -214,29 +225,23 @@ export default function Home() {
       setUiVisible(true);
       setShowGauntlet(true);
       setHydrated(true);
-      // Auto-start after a brief render
-      setTimeout(() => {
-        const lvl = GAUNTLET_LEVELS[0];
-        if (lvl) {
-          // Will trigger via startGauntletBattle after state settles
-        }
-      }, 500);
+      setAutoStartPortal(true); // trigger auto-battle via useEffect
     } else {
       // Normal flow
       const onboardingDone = localStorage.getItem("battleai_onboarding_done");
       const isFirstVisit = !onboardingDone;
-      if (isFirstVisit) {
+      if (isFirstVisit && !existingName) {
+        setShowOnboarding(true);
+      } else if (isFirstVisit && existingName) {
+        // Has name but hasn't completed onboarding — skip name input, show quick onboarding
+        setRunnerName(existingName);
         setShowOnboarding(true);
       } else {
         setUiVisible(true);
+        if (existingName) setRunnerName(existingName);
       }
       const booted = localStorage.getItem("battleai_first_boot");
       if (booted) setHasBooted(true);
-      // Load runner name
-      try {
-        const runner = JSON.parse(localStorage.getItem("battleai_runner") || "null");
-        if (runner?.name) setRunnerName(runner.name);
-      } catch { /* ignore */ }
     }
 
     // Load free battle counter
@@ -251,6 +256,23 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("battleai_gauntlet", JSON.stringify(gauntlet));
   }, [gauntlet]);
+
+  // Auto-start battle for portal users
+  useEffect(() => {
+    if (!autoStartPortal || !hydrated) return;
+    setAutoStartPortal(false);
+    const lvl = GAUNTLET_LEVELS[gauntlet.currentLevel];
+    if (lvl) {
+      setTimeout(() => {
+        setGauntletLevelPlayed(gauntlet.currentLevel);
+        setCrackedPrompt(lvl.prompt);
+        startBattleRaw({
+          botPrompt: lvl.prompt, botName: lvl.name, botFaction: lvl.faction, botHp: lvl.hp,
+          allowedActions: lvl.allowedActions, arenaWidth: lvl.arenaWidth, arenaHeight: lvl.arenaHeight, playerHp: lvl.playerHp,
+        });
+      }, 800);
+    }
+  }, [autoStartPortal, hydrated]);
 
   const currentLevel = GAUNTLET_LEVELS[gauntlet.currentLevel] || null;
 
@@ -493,10 +515,6 @@ export default function Home() {
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
           <div className="hidden lg:flex gap-1">
-            <a href="/lore"
-              className="text-[9px] font-mono px-2 py-0.5 rounded-sm border border-amber/40 text-amber hover:bg-amber/10 transition-all animate-pulse-glow">
-              1 NEW MSG
-            </a>
             <button onClick={() => setShowGauntlet(true)}
               className={`text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-all ${showGauntlet ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               GAUNTLET
@@ -576,7 +594,7 @@ export default function Home() {
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
             >
-              <SysopTerminal onDismiss={enterMatrix} quickMode />
+              <SysopTerminal onDismiss={enterMatrix} quickMode existingName={runnerName} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1008,7 +1026,7 @@ export default function Home() {
               </a>
               {portalRef && (
                 <a
-                  href={`https://${portalRef}`}
+                  href={`https://${portalRef}${portalParams ? `?${portalParams}` : ""}`}
                   className="flex-1 text-center py-2 rounded-sm border border-cyan/40 text-cyan text-[10px] font-mono uppercase tracking-wider hover:bg-cyan/10 transition-all"
                 >
                   ← RETURN TO {portalRef}
@@ -1024,6 +1042,25 @@ export default function Home() {
             <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
           </div>
         </div>
+        {/* Notification cards — bottom right */}
+        {uiVisible && !isFighting && !showOnboarding && (
+          <div className="fixed bottom-4 right-4 z-30 flex flex-col gap-2 max-w-xs">
+            {/* Lore message from SYSOP */}
+            <a href="/lore" className="group block bg-bg-panel border border-amber/30 rounded-sm p-3 hover:border-amber/60 transition-all"
+              style={{ boxShadow: "0 0 15px rgba(255,184,0,0.1)" }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 bg-amber rounded-full animate-pulse" />
+                <span className="text-amber text-[9px] font-mono uppercase tracking-widest">SYSOP TRANSMISSION</span>
+              </div>
+              <p className="text-text-secondary text-[10px] font-mono leading-relaxed">
+                &quot;I have a message for you, runner. Jack into the lore terminal.&quot;
+              </p>
+              <span className="text-amber/40 text-[8px] font-mono group-hover:text-amber transition-colors mt-1 block">
+                → READ FULL TRANSMISSION
+              </span>
+            </a>
+          </div>
+        )}
       </main>
     </div>
   );

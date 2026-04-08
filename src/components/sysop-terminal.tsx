@@ -16,6 +16,7 @@ const CHAR_SPEED = 30;
 interface SysopTerminalProps {
   onDismiss: (runnerName: string) => void;
   quickMode?: boolean; // skip typewriter, just name input + confirm
+  existingName?: string | null; // skip name input if already known
 }
 
 function useTypewriter(lines: { text: string; type: string }[], enabled: boolean) {
@@ -61,9 +62,11 @@ function useTypewriter(lines: { text: string; type: string }[], enabled: boolean
   return { displayed, done, skipToEnd };
 }
 
-export function SysopTerminal({ onDismiss, quickMode = false }: SysopTerminalProps) {
-  const [phase, setPhase] = useState<"connecting" | "intro" | "name" | "post" | "confirm">(quickMode ? "name" : "connecting");
-  const [runnerName, setRunnerName] = useState("");
+export function SysopTerminal({ onDismiss, quickMode = false, existingName }: SysopTerminalProps) {
+  // If we already have a name, skip straight to confirm
+  const initialPhase = existingName ? "confirm" : (quickMode ? "name" : "connecting");
+  const [phase, setPhase] = useState<"connecting" | "intro" | "name" | "post" | "confirm">(initialPhase);
+  const [runnerName, setRunnerName] = useState(existingName || "");
   const [nameSubmitted, setNameSubmitted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
