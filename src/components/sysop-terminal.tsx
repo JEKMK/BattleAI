@@ -143,8 +143,8 @@ function NameInput({ quickMode, inputRef, runnerName, setRunnerName, submitName 
               onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
               className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent w-48"
               spellCheck={false} autoComplete="off" />
-            <span className="absolute top-0 inline-block w-2 h-4 bg-neon-green/80 animate-pulse pointer-events-none"
-              style={{ left: `${runnerName.length * 0.55}em` }} />
+            <span className="absolute inline-block w-2 h-4 bg-neon-green/80 animate-pulse pointer-events-none"
+              style={{ left: `${runnerName.length * 0.55 + 0.15}em`, top: '3px' }} />
           </div>
         </div>
       )}
