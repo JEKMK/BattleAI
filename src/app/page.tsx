@@ -826,7 +826,7 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative transition-all duration-500 ${gameState ? "justify-start pt-4" : "justify-center"} ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
+        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative transition-all duration-500 justify-center ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
 
           {/* Gauntlet victory score */}
           {showGauntlet && isOver && lastScore > 0 && (
