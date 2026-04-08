@@ -135,15 +135,17 @@ function NameInput({ quickMode, inputRef, runnerName, setRunnerName, submitName 
         <div className="text-amber mb-2">SYSOP&gt; {questionLine}</div>
       )}
       {showInput && (
-        <div className="flex items-center">
+        <div className="flex items-center cursor-text" onClick={() => inputRef.current?.focus()}>
           <span className="text-neon-green mr-1">&gt;</span>
-          <span className="text-neon-green font-mono text-sm">{runnerName}</span>
-          <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
-          <input ref={inputRef} type="text" value={runnerName}
-            onChange={(e) => setRunnerName(e.target.value.slice(0, 20).toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
-            className="absolute opacity-0 w-0 h-0"
-            spellCheck={false} autoComplete="off" />
+          <div className="relative">
+            <input ref={inputRef} type="text" value={runnerName}
+              onChange={(e) => setRunnerName(e.target.value.slice(0, 20).toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
+              className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent w-48"
+              spellCheck={false} autoComplete="off" />
+            <span className="absolute top-0 inline-block w-2 h-4 bg-neon-green/80 animate-pulse pointer-events-none"
+              style={{ left: `${runnerName.length * 0.55}em` }} />
+          </div>
         </div>
       )}
       {taunt && (
