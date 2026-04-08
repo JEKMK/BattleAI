@@ -11,7 +11,7 @@ const SYSOP_LINES = [
   { text: "10 ICE barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "sysop" as const },
 ];
 
-const CHAR_SPEED = 30;
+const CHAR_SPEED = 18;
 
 interface SysopTerminalProps {
   onDismiss: (runnerName: string) => void;
@@ -47,7 +47,7 @@ function useTypewriter(lines: { text: string; type: string }[], enabled: boolean
       return () => clearTimeout(timer);
     }
 
-    const pause = line.type === "system" ? 300 : 600;
+    const pause = line.type === "system" ? 150 : 300;
     const timer = setTimeout(() => { setLineIdx((l) => l + 1); setCharIdx(0); }, pause);
     return () => clearTimeout(timer);
   }, [enabled, done, lineIdx, charIdx, lines]);
@@ -82,7 +82,7 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
   // Connecting → intro
   useEffect(() => {
     if (phase !== "connecting") return;
-    const timer = setTimeout(() => setPhase("intro"), 1800);
+    const timer = setTimeout(() => setPhase("intro"), 900);
     return () => clearTimeout(timer);
   }, [phase]);
 
