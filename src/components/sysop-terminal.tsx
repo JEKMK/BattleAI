@@ -108,7 +108,8 @@ function NameInput({ quickMode, inputRef, runnerName, setRunnerName, submitName 
       if (lineIdx >= lines.length) {
         clearInterval(timer);
         setShowInput(true);
-        setTimeout(() => inputRef.current?.focus(), 100);
+        setTimeout(() => inputRef.current?.focus(), 300);
+        setTimeout(() => inputRef.current?.focus(), 600);
         return;
       }
       const line = lines[lineIdx];
@@ -142,7 +143,7 @@ function NameInput({ quickMode, inputRef, runnerName, setRunnerName, submitName 
               onChange={(e) => setRunnerName(e.target.value.slice(0, 20).toUpperCase())}
               onKeyDown={(e) => e.key === "Enter" && runnerName.trim() && submitName()}
               className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent w-48"
-              spellCheck={false} autoComplete="off" />
+              spellCheck={false} autoComplete="off" autoFocus />
             <span className="absolute inline-block w-2 h-4 bg-neon-green/80 animate-pulse pointer-events-none"
               style={{ left: `${runnerName.length * 0.55 + 0.15}em`, top: '3px' }} />
           </div>
@@ -313,7 +314,7 @@ export function SysopTerminal({ onDismiss, quickMode = false, existingName }: Sy
           </div>
 
           {/* Body */}
-          <div ref={scrollRef} className="p-4 font-mono text-sm leading-relaxed h-[320px] overflow-y-auto relative">
+          <div ref={scrollRef} className="p-4 font-mono text-sm leading-relaxed h-[320px] overflow-y-auto relative" onClick={() => { inputRef.current?.focus(); confirmRef.current?.focus(); }}
             {/* Boot sequence — fast code lines */}
             {phase === "boot" && (
               <div className="space-y-0.5">
