@@ -8,7 +8,7 @@ const SYSOP_LINES = [
   { text: "Another runner jacking in from the Sprawl.", type: "sysop" as const },
   { text: "Your construct fights alone in the matrix. What it knows, what it does — that's on you. Write its neural template. That's your only weapon.", type: "sysop" as const },
   { text: "RAM: limited. Make every word count.", type: "emphasis" as const },
-  { text: "10 ICE barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "sysop" as const },
+  { text: "15 ICE barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "sysop" as const },
 ];
 
 const CHAR_SPEED = 18;

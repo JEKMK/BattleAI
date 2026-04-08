@@ -129,7 +129,7 @@ const TUTORIAL_LEVELS: GauntletLevel[] = [
     arenaWidth: 10,
     arenaHeight: 8,
     preHint: "Heavy hitter. HAMMER incoming.\nGHOST lets you phase out for 1 tick — invulnerable.\nTime it right and counter.",
-    unlockMessage: "TRAINING COMPLETE. All basic subroutines unlocked.\nThe real gauntlet begins. 10 ICE barriers ahead.\nNobody's cracked them all.",
+    unlockMessage: "TRAINING COMPLETE. All basic subroutines unlocked.\nThe real gauntlet begins. 15 ICE barriers ahead.\nNobody's cracked them all.",
     prompt: "Aggressive melee fighter. Rush toward enemy. Use heavy as primary attack for maximum damage. If enemy dodges, follow up with punch. Use heavy whenever off cooldown. Close distance relentlessly.",
   },
 ];

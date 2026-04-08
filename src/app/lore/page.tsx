@@ -40,7 +40,7 @@ const POST_NAME_SEQUENCE: Line[] = [
   { text: "", type: "pause", delay: 600 },
   { text: "Your Ono-Sendai has limited RAM. Write what you can. Crack ICE, earn more. The rest... you figure out.", type: "sysop", delay: 12 },
   { text: "", type: "pause", delay: 600 },
-  { text: "10 barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "emphasis", delay: 18 },
+  { text: "15 barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "emphasis", delay: 18 },
   { text: "", type: "pause", delay: 500 },
   { text: "I won't tell you how to fight. Dixie learned the hard way and so will you. Watch what your construct does. Read the aftermath. The patterns are there if you're smart enough to see them.", type: "sysop", delay: 8 },
   { text: "", type: "pause", delay: 600 },
