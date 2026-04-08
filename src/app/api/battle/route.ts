@@ -1,6 +1,4 @@
 import { generateText, gateway } from "ai";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import {
   type Faction,
   type FighterAction,
@@ -338,6 +336,17 @@ export async function POST(req: Request) {
 
   const actionLog: ActionRecord[] = [];
 
+  console.log(JSON.stringify({
+    event: "BATTLE_START",
+    timestamp: new Date().toISOString(),
+    playerFaction,
+    botFaction,
+    botName: actualBotName,
+    playerPromptLength: playerPrompt.length,
+    arenaSize: `${levelArenaWidth || 10}x${levelArenaHeight || 8}`,
+    allowedActions: levelAllowedActions || "all",
+  }));
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -397,29 +406,24 @@ export async function POST(req: Request) {
       });
       controller.enqueue(encoder.encode(statsLine + "\n"));
 
-      // Save battle log to disk
+      // Structured log — visible in Vercel function logs dashboard
       try {
-        const logsDir = path.join(process.cwd(), "logs");
-        await mkdir(logsDir, { recursive: true });
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `${ts}_${playerFaction}-vs-${botFaction}_${botType}.json`;
-        const battleLog = {
+        console.log(JSON.stringify({
+          event: "BATTLE_COMPLETE",
           timestamp: new Date().toISOString(),
-          config: { playerFaction, botFaction, botType, playerPrompt, botPrompt: actualBotPrompt },
-          finalState: state,
-          usage: {
-            totalCalls: usage.totalCalls,
-            totalInputTokens: usage.totalInputTokens,
-            totalOutputTokens: usage.totalOutputTokens,
-            costUSD: costs.total,
-            perModel: Object.entries(usage.perFaction).map(([model, stats]) => ({
-              model, ...stats, costUSD: costs.perModel[model] || 0,
-            })),
-          },
-          analytics: { red: analytics.red, blue: analytics.blue },
-          actionLog,
-        };
-        await writeFile(path.join(logsDir, filename), JSON.stringify(battleLog, null, 2));
+          winner: state.winner,
+          ticks: state.tick,
+          playerFaction,
+          botFaction,
+          botName: actualBotName,
+          playerPromptLength: playerPrompt.length,
+          costUSD: costs.total,
+          totalTokens: usage.totalInputTokens + usage.totalOutputTokens,
+          totalCalls: usage.totalCalls,
+          arenaSize: `${levelArenaWidth || 10}x${levelArenaHeight || 8}`,
+          playerHp: state.fighters[0].hp,
+          botHp: state.fighters[1].hp,
+        }));
       } catch (e) {
         console.error("Failed to save battle log:", e);
       }

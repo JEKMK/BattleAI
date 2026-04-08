@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       temperature: 0.85,
     });
 
+    console.log(JSON.stringify({ event: "SYSOP_REPORT", timestamp: new Date().toISOString(), reportLength: text.length }));
     return Response.json({ report: text });
   } catch (error) {
     console.error("SYSOP error:", error);
