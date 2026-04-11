@@ -5,9 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
+import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
+import { PostBattleTerminal } from "@/components/post-battle-terminal";
+import { BootLines } from "@/components/boot-sequence";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
-import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, calculateScore, type GauntletState } from "@/lib/gauntlet";
+import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, TUTORIAL_COUNT, calculateScore, type GauntletState } from "@/lib/gauntlet";
 
 interface FighterAnalytics {
   moves: Record<string, number>;
@@ -158,7 +161,7 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
 
 export default function Home() {
   const [prompt, setPrompt] = useState(
-    "Move toward the enemy and attack.",
+    "Move toward the enemy and attack. (rewrite me — this prompt is terrible)",
   );
   const [faction, setFaction] = useState<Faction>("anthropic");
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -173,9 +176,22 @@ export default function Home() {
   const [gauntlet, setGauntlet] = useState<GauntletState>(INITIAL_GAUNTLET);
   const [showGauntlet, setShowGauntlet] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [uiVisible, setUiVisible] = useState(false); // prevents flash — stays false until hydration decides
   const [lastScore, setLastScore] = useState(0);
   const [gauntletLevelPlayed, setGauntletLevelPlayed] = useState<number | null>(null);
   const [expandedLevel, setExpandedLevel] = useState<number | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [spotlightPrompt, setSpotlightPrompt] = useState(false); // dims everything except prompt
+  const [bootPhase, setBootPhase] = useState<"idle" | "blackout" | "boot" | "flicker" | "done">("idle");
+  const [hasBooted, setHasBooted] = useState(false);
+  const [flickerKey, setFlickerKey] = useState(0); // increment to re-trigger CSS animations
+  const [runnerName, setRunnerName] = useState<string | null>(null);
+  const [freeBattles, setFreeBattles] = useState(0);
+  const FREE_BATTLE_LIMIT = 20;
+  const [portalRef, setPortalRef] = useState<string | null>(null); // game they came from
+  const [portalParams, setPortalParams] = useState<string>(""); // all original portal params to forward back
+  const [autoStartPortal, setAutoStartPortal] = useState(false);
+  const [analyticsFirstTime, setAnalyticsFirstTime] = useState(false);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -183,6 +199,60 @@ export default function Home() {
     if (saved) {
       try { setGauntlet(JSON.parse(saved)); } catch { /* ignore */ }
     }
+
+    // Portal detection
+    const params = new URLSearchParams(window.location.search);
+    const isPortal = params.get("portal") === "true";
+    const portalUsername = params.get("username");
+    const portalRefParam = params.get("ref");
+    if (portalRefParam) setPortalRef(portalRefParam);
+    // Save all portal params for forwarding back
+    if (isPortal) setPortalParams(params.toString());
+
+    // Load existing runner name from localStorage
+    let existingName: string | null = null;
+    try {
+      const runner = JSON.parse(localStorage.getItem("battleai_runner") || "null");
+      if (runner?.name) existingName = runner.name;
+    } catch { /* ignore */ }
+
+    if (isPortal) {
+      // Portal entry — skip ALL onboarding, instant play
+      const name = (portalUsername || existingName || "RUNNER").toUpperCase();
+      setRunnerName(name);
+      localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
+      localStorage.setItem("battleai_onboarding_done", "1");
+      localStorage.setItem("battleai_first_boot", "1");
+      setHasBooted(true);
+      setUiVisible(true);
+      setShowGauntlet(true);
+      setHydrated(true);
+      setAutoStartPortal(true); // trigger auto-battle via useEffect
+    } else {
+      // Normal flow
+      const onboardingDone = localStorage.getItem("battleai_onboarding_done");
+      const isFirstVisit = !onboardingDone;
+      if (isFirstVisit && !existingName) {
+        setShowOnboarding(true);
+      } else if (isFirstVisit && existingName) {
+        // Has name but hasn't completed onboarding — skip name input, show quick onboarding
+        setRunnerName(existingName);
+        setShowOnboarding(true);
+      } else {
+        setUiVisible(true);
+        if (existingName) setRunnerName(existingName);
+      }
+      const booted = localStorage.getItem("battleai_first_boot");
+      if (booted) setHasBooted(true);
+    }
+
+    // Check if analytics has been seen
+    if (!localStorage.getItem("battleai_analytics_seen")) setAnalyticsFirstTime(true);
+
+    // Load free battle counter
+    const battles = parseInt(localStorage.getItem("battleai_free_battles") || "0", 10);
+    setFreeBattles(battles);
+
     setShowGauntlet(true);
     setHydrated(true);
   }, []);
@@ -191,6 +261,23 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("battleai_gauntlet", JSON.stringify(gauntlet));
   }, [gauntlet]);
+
+  // Auto-start battle for portal users
+  useEffect(() => {
+    if (!autoStartPortal || !hydrated) return;
+    setAutoStartPortal(false);
+    const lvl = GAUNTLET_LEVELS[gauntlet.currentLevel];
+    if (lvl) {
+      setTimeout(() => {
+        setGauntletLevelPlayed(gauntlet.currentLevel);
+        setCrackedPrompt(lvl.prompt);
+        startBattleRaw({
+          botPrompt: lvl.prompt, botName: lvl.name, botFaction: lvl.faction, botHp: lvl.hp,
+          allowedActions: lvl.allowedActions, arenaWidth: lvl.arenaWidth, arenaHeight: lvl.arenaHeight, playerHp: lvl.playerHp,
+        });
+      }, 800);
+    }
+  }, [autoStartPortal, hydrated]);
 
   const currentLevel = GAUNTLET_LEVELS[gauntlet.currentLevel] || null;
 
@@ -228,10 +315,17 @@ export default function Home() {
         if (next.currentLevel < GAUNTLET_LEVELS.length - 1) {
           next.currentLevel++;
         }
-        if (level.level >= 3 && !next.unlockedActions.includes("heavy")) {
-          next.unlockedActions = [...next.unlockedActions, "heavy"];
+        // Unlock actions from next level's allowedActions
+        const nextLevel = GAUNTLET_LEVELS[next.currentLevel];
+        if (nextLevel?.allowedActions) {
+          for (const action of nextLevel.allowedActions) {
+            if (!next.unlockedActions.includes(action)) {
+              next.unlockedActions = [...next.unlockedActions, action];
+            }
+          }
         }
-        if (level.level >= 5 && !next.unlockedActions.includes("parry")) {
+        // Unlock parry at gauntlet level 8 (Warez Daemon)
+        if (level.level >= 8 && !next.unlockedActions.includes("parry")) {
           next.unlockedActions = [...next.unlockedActions, "parry"];
         }
       } else if (isDraw) {
@@ -243,14 +337,20 @@ export default function Home() {
     });
   }, [isFighting, gameState, gauntletLevelPlayed]);
 
-  const startBattle = useCallback(async (overrides?: {
+  const startBattleRaw = useCallback(async (overrides?: {
     botPrompt: string; botName: string; botFaction: Faction; botHp: number;
+    allowedActions?: string[]; arenaWidth?: number; arenaHeight?: number; playerHp?: number;
   }) => {
     if (isFighting) {
       abortRef.current?.abort();
       setIsFighting(false);
       return;
     }
+
+    // Increment free battle counter
+    const newCount = freeBattles + 1;
+    setFreeBattles(newCount);
+    localStorage.setItem("battleai_free_battles", String(newCount));
 
     setIsFighting(true);
     setGameState(null);
@@ -270,6 +370,10 @@ export default function Home() {
         body.botName = overrides.botName;
         body.botFaction = overrides.botFaction;
         body.botHp = overrides.botHp;
+        if (overrides.allowedActions) body.allowedActions = overrides.allowedActions;
+        if (overrides.arenaWidth) body.arenaWidth = overrides.arenaWidth;
+        if (overrides.arenaHeight) body.arenaHeight = overrides.arenaHeight;
+        if (overrides.playerHp) body.playerHp = overrides.playerHp;
       } else {
         body.botType = "balanced";
         body.botFaction = "openai";
@@ -323,6 +427,82 @@ export default function Home() {
     }
   }, [prompt, faction, isFighting]);
 
+  // Pending battle overrides — stored so boot sequence can trigger battle after completing
+  const pendingBattleRef = useRef<Parameters<typeof startBattleRaw>[0] | undefined>(undefined);
+  const bootPurposeRef = useRef<"onboarding" | "battle">("battle");
+
+  const finishBoot = useCallback(() => {
+    setBootPhase("done");
+    setFlickerKey((k) => k + 1); // trigger CSS flicker-in on panels
+    setUiVisible(true); // reveal UI
+    if (!hasBooted) {
+      setHasBooted(true);
+      localStorage.setItem("battleai_first_boot", "1");
+    }
+    if (bootPurposeRef.current === "battle") {
+      startBattleRaw(pendingBattleRef.current);
+    } else {
+      // Onboarding boot — reveal UI with spotlight
+      setSpotlightPrompt(true);
+    }
+  }, [hasBooted, startBattleRaw]);
+
+  // Triggered by "ENTER THE MATRIX" — boot sequence to reveal UI
+  const enterMatrix = useCallback((result: OnboardingResult) => {
+    setShowOnboarding(false);
+    localStorage.setItem("battleai_onboarding_done", "1");
+
+    if (result.mode === "helped" && result.prompt) {
+      // Fill prompt and auto-start first battle
+      setPrompt(result.prompt);
+      bootPurposeRef.current = "battle";
+      pendingBattleRef.current = undefined; // will use startGauntletBattle after boot
+      setBootPhase("blackout");
+      setTimeout(() => setBootPhase("boot"), 500);
+      // Auto-start after boot finishes
+      setTimeout(() => {
+        const lvl = GAUNTLET_LEVELS[gauntlet.currentLevel];
+        if (lvl) {
+          setGauntletLevelPlayed(gauntlet.currentLevel);
+          setCrackedPrompt(lvl.prompt);
+          pendingBattleRef.current = {
+            botPrompt: lvl.prompt, botName: lvl.name, botFaction: lvl.faction, botHp: lvl.hp,
+            allowedActions: lvl.allowedActions, arenaWidth: lvl.arenaWidth, arenaHeight: lvl.arenaHeight, playerHp: lvl.playerHp,
+          };
+        }
+      }, 100);
+    } else {
+      // Write mode — show UI with spotlight on empty prompt
+      bootPurposeRef.current = "onboarding";
+      setPrompt("");
+      setBootPhase("blackout");
+      setTimeout(() => setBootPhase("boot"), 500);
+    }
+  }, [gauntlet.currentLevel]);
+
+  // Boot sequence wrapper for battles
+  const startBattle = useCallback((overrides?: Parameters<typeof startBattleRaw>[0]) => {
+    // Free tier check (soft block during jam — just warn)
+    if (freeBattles >= FREE_BATTLE_LIMIT) {
+      // During jam: allow but warn. Post-jam: hard block here
+    }
+    setSpotlightPrompt(false);
+    pendingBattleRef.current = overrides;
+    bootPurposeRef.current = "battle";
+
+    // First battle after onboarding boot — short flicker only
+    // Full boot already happened at ENTER THE MATRIX
+    setBootPhase("flicker");
+  }, []);
+
+  // When flicker phase starts, wait for animation then finish boot
+  useEffect(() => {
+    if (bootPhase !== "flicker") return;
+    const delay = hasBooted ? 400 : 1200;
+    const timer = setTimeout(finishBoot, delay);
+    return () => clearTimeout(timer);
+  }, [bootPhase, hasBooted, finishBoot]);
+
   const startGauntletBattle = useCallback(() => {
     if (!currentLevel) return;
     setGauntletLevelPlayed(gauntlet.currentLevel);
@@ -333,6 +513,10 @@ export default function Home() {
       botName: currentLevel.name,
       botFaction: currentLevel.faction,
       botHp: currentLevel.hp,
+      allowedActions: currentLevel.allowedActions,
+      arenaWidth: currentLevel.arenaWidth,
+      arenaHeight: currentLevel.arenaHeight,
+      playerHp: currentLevel.playerHp,
     });
   }, [currentLevel, startBattle]);
 
@@ -348,18 +532,17 @@ export default function Home() {
   return (
     <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0">
+      <header className={`border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0 transition-all duration-500 ${!uiVisible ? "invisible" : ""} ${spotlightPrompt ? "opacity-20" : ""}`}>
         <div className="flex items-center gap-3">
           <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
           </h1>
+          {runnerName && (
+            <span className="text-neon-green/60 text-[9px] font-mono">{runnerName}</span>
+          )}
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
-          <div className="flex gap-1">
-            <a href="/lore"
-              className="text-[9px] font-mono px-2 py-0.5 rounded-sm border border-amber/40 text-amber hover:bg-amber/10 transition-all animate-pulse-glow">
-              1 NEW MSG
-            </a>
+          <div className="hidden lg:flex gap-1">
             <button onClick={() => setShowGauntlet(true)}
               className={`text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-all ${showGauntlet ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               GAUNTLET
@@ -370,19 +553,22 @@ export default function Home() {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-4 font-mono text-[10px]">
+        <div className="flex items-center gap-2 lg:gap-4 font-mono text-[10px]">
           {hydrated && showGauntlet && (
             <>
-              <span className="text-text-dim">SCORE</span>
+              <span className="hidden lg:inline text-text-dim">SCORE</span>
               <span className="text-amber tabular-nums font-bold">{gauntlet.totalScore.toLocaleString()}</span>
-              <span className="text-text-dim">RAM</span>
-              <span className="text-cyan tabular-nums">{gauntlet.ramUnlocked}</span>
-              <span className="text-text-dim">W/D/L</span>
-              <span className="text-neon-green tabular-nums">{gauntlet.wins}</span>
-              <span className="text-text-dim">/</span>
-              <span className="text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
-              <span className="text-text-dim">/</span>
-              <span className="text-magenta tabular-nums">{gauntlet.losses}</span>
+              <span className="hidden lg:inline text-text-dim">RAM</span>
+              <span className="hidden lg:inline text-cyan tabular-nums">{gauntlet.ramUnlocked}</span>
+              <span className="hidden lg:inline text-text-dim">W/D/L</span>
+              <span className="hidden lg:inline text-neon-green tabular-nums">{gauntlet.wins}</span>
+              <span className="hidden lg:inline text-text-dim">/</span>
+              <span className="hidden lg:inline text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
+              <span className="hidden lg:inline text-text-dim">/</span>
+              <span className="hidden lg:inline text-magenta tabular-nums">{gauntlet.losses}</span>
+              <span className={`tabular-nums text-[9px] ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
+                {FREE_BATTLE_LIMIT - freeBattles} FREE
+              </span>
             </>
           )}
           {gameState && (
@@ -398,14 +584,58 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 flex gap-0 overflow-hidden">
+      <main className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden relative">
+        {/* Boot sequence overlay — covers entire main area */}
+        <AnimatePresence>
+          {bootPhase === "blackout" && (
+            <motion.div
+              key="blackout"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-40 bg-black flex items-center justify-center"
+            >
+              <span className="text-neon-green/30 text-[10px] font-mono animate-pulse">JACKING IN...</span>
+            </motion.div>
+          )}
+          {bootPhase === "boot" && (
+            <motion.div
+              key="boot"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-[10px] text-neon-green/60 gap-1"
+            >
+              <BootLines faction={faction} level={currentLevel?.name} runner={runnerName} onDone={() => setBootPhase("flicker")} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Fullscreen SYSOP Terminal — first visit onboarding */}
+        <AnimatePresence>
+          {hydrated && showOnboarding && !gameState && bootPhase === "idle" && (
+            <motion.div
+              key="sysop-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
+              className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
+            >
+              <SysopTerminal onDismiss={enterMatrix} existingName={runnerName} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+
         {/* Left Panel */}
-        <div className="w-72 shrink-0 flex flex-col border-r border-border bg-bg-panel overflow-y-auto">
+        <div key={`left-${flickerKey}`} className={`w-full lg:w-72 shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-bg-panel overflow-y-auto ${isFighting ? "hidden lg:flex" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
-          <div className="p-3 border-b border-border">
+          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "ring-1 ring-cyan/30 bg-bg-panel" : ""}`}>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan">
-                &gt; Construct Code_
+              <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan flex items-center gap-1.5">
+                &gt; System Prompt_
+                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Your combat prompt — tell your AI construct how to fight: when to attack, dodge, block, or retreat. The better your instructions, the smarter it fights. Limited by RAM.">?</span>
               </label>
               <span className={`text-[9px] font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
                 {prompt.length}/{showGauntlet ? gauntlet.ramUnlocked : "∞"} RAM
@@ -422,12 +652,25 @@ export default function Home() {
               placeholder="// Define your construct..."
               disabled={isFighting}
               spellCheck={false}
+              autoFocus={spotlightPrompt}
             />
+            {spotlightPrompt && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-cyan/60 text-[9px] font-mono mt-1.5 animate-pulse-glow"
+              >
+                ↑ Rewrite this. Your prompt is your only weapon. Then hit JACK IN below.
+              </motion.p>
+            )}
           </div>
 
           {/* Faction */}
-          <div className="p-3 border-b border-border">
-            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-1.5">Zaibatsu</label>
+          <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
+            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              Zaibatsu
+              <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Choose which AI corporation powers your construct. Each zaibatsu (Anthropic, Google, OpenAI) thinks differently — some are fast, some are creative, some are precise.">?</span>
+            </label>
             <div className="grid grid-cols-3 gap-1.5">
               {FACTIONS.map((f) => {
                 const meta = FACTION_META[f];
@@ -445,8 +688,11 @@ export default function Home() {
 
           {/* Gauntlet levels or Free config */}
           {showGauntlet ? (
-            <div className="p-3 border-b border-border flex-1 overflow-y-auto">
-              <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-2">ICE Breaker Gauntlet</label>
+            <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
+              <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                {gauntlet.currentLevel < TUTORIAL_COUNT ? "Training Protocol" : "ICE Breaker Gauntlet"}
+                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title={gauntlet.currentLevel < TUTORIAL_COUNT ? "Complete training to learn combat mechanics. Each level unlocks a new ability." : "15 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities."}>?</span>
+              </label>
               <div className="space-y-1">
                 {GAUNTLET_LEVELS.map((lvl, i) => {
                   const isCurrent = i === gauntlet.currentLevel;
@@ -454,22 +700,46 @@ export default function Home() {
                   const isLocked = i > gauntlet.currentLevel;
                   const levelResult = gauntlet.history.filter(h => h.level === lvl.level);
                   const meta = FACTION_META[lvl.faction];
+                  const tutorialComplete = gauntlet.currentLevel >= TUTORIAL_COUNT;
+                  const isGauntletLevel = !lvl.isTutorial;
+
+                  // Hide gauntlet levels if tutorial not complete
+                  if (isGauntletLevel && !tutorialComplete) {
+                    if (i === TUTORIAL_COUNT) {
+                      return (
+                        <div key="locked" className="px-2 py-2 rounded-sm border border-border bg-bg-deep text-center">
+                          <span className="text-text-dim text-[9px] font-mono">LOCKED — Complete training to access the gauntlet</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }
 
                   const winEntry = levelResult.find(h => h.won && h.crackedPrompt);
                   const isExpanded = expandedLevel === lvl.level;
 
+                  // Section headers
+                  const showTutorialHeader = i === 0;
+                  const showGauntletHeader = i === TUTORIAL_COUNT && tutorialComplete;
+
                   return (
                     <div key={lvl.level}>
+                      {showTutorialHeader && (
+                        <div className="text-neon-green/30 text-[8px] font-mono uppercase tracking-widest mb-1">Training</div>
+                      )}
+                      {showGauntletHeader && (
+                        <div className="text-cyan/30 text-[8px] font-mono uppercase tracking-widest mt-2 mb-1">ICE Gauntlet</div>
+                      )}
                       <button
                         onClick={() => isBeaten ? setExpandedLevel(isExpanded ? null : lvl.level) : undefined}
                         className={`w-full px-2 py-1.5 rounded-sm border text-[9px] font-mono transition-all text-left ${
-                          isCurrent ? "border-magenta bg-bg-elevated" :
+                          isCurrent ? (lvl.isTutorial ? "border-neon-green bg-bg-elevated" : "border-magenta bg-bg-elevated") :
                           isBeaten ? "border-neon-green/30 bg-bg-deep hover:border-neon-green/60 cursor-pointer" :
                           "border-border bg-bg-deep opacity-40 cursor-default"
                         }`}>
                         <div className="flex items-center justify-between">
-                          <span className={`font-bold ${isCurrent ? "text-magenta" : isBeaten ? "text-neon-green" : "text-text-dim"}`}>
-                            {isBeaten ? "✓ " : isLocked ? "◆ " : "▸ "}{lvl.name}
+                          <span className={`font-bold ${isCurrent ? (lvl.isTutorial ? "text-neon-green" : "text-magenta") : isBeaten ? "text-neon-green" : "text-text-dim"}`}>
+                            {isBeaten ? "✓ " : isLocked ? "◆ " : "▸ "}{lvl.isTutorial ? lvl.title.replace("Training — ", "") : lvl.name}
                           </span>
                           <span className="text-text-dim">{lvl.hp} ICE</span>
                         </div>
@@ -522,8 +792,27 @@ export default function Home() {
             </div>
           )}
 
+          {/* Pre-battle SYSOP hint for tutorial levels */}
+          {showGauntlet && currentLevel?.preHint && !isFighting && !isOver && (
+            <div className="px-3 py-2 border-b border-neon-green/10">
+              <div className="text-neon-green/40 text-[8px] font-mono uppercase tracking-widest mb-1">SYSOP&gt;</div>
+              <p className="text-neon-green/70 text-[10px] font-mono leading-relaxed whitespace-pre-line">{currentLevel.preHint}</p>
+            </div>
+          )}
+
+          {/* Unlock message after winning */}
+          {showGauntlet && isOver && gameState?.winner === "red" && (() => {
+            const justBeat = GAUNTLET_LEVELS[gauntlet.currentLevel - 1];
+            return justBeat?.unlockMessage ? (
+              <div className="px-3 py-2 border-b border-amber/20">
+                <div className="text-amber text-[8px] font-mono uppercase tracking-widest mb-1 animate-pulse-glow">NEW UNLOCK</div>
+                <p className="text-amber/80 text-[10px] font-mono leading-relaxed whitespace-pre-line">{justBeat.unlockMessage}</p>
+              </div>
+            ) : null;
+          })()}
+
           {/* Action buttons */}
-          <div className="p-3 space-y-2 shrink-0">
+          <div className={`p-3 space-y-2 shrink-0 transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
             {showGauntlet ? (
               <>
                 <motion.button
@@ -532,10 +821,11 @@ export default function Home() {
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}
                   className={`w-full py-3 rounded-sm font-mono font-bold text-sm uppercase tracking-[0.4em] transition-all ${
                     isFighting ? "bg-magenta/20 border-2 border-magenta text-magenta" :
+                    currentLevel?.isTutorial ? "bg-neon-green/10 border-2 border-neon-green text-neon-green hover:bg-neon-green/20" :
                     "bg-cyan/10 border-2 border-cyan text-cyan hover:bg-cyan/20"
                   }`}
-                  style={{ boxShadow: isFighting ? "var(--glow-magenta)" : "var(--glow-cyan)" }}>
-                  {isFighting ? "ABORT" : currentLevel ? `LVL ${currentLevel.level} — JACK IN` : "GAUNTLET COMPLETE"}
+                  style={{ boxShadow: isFighting ? "var(--glow-magenta)" : currentLevel?.isTutorial ? "var(--glow-green)" : "var(--glow-cyan)" }}>
+                  {isFighting ? "ABORT" : currentLevel ? (currentLevel.isTutorial ? currentLevel.title.replace("Training — ", "TRAIN: ") : `LVL ${currentLevel.level - TUTORIAL_COUNT} — JACK IN`) : "GAUNTLET COMPLETE"}
                 </motion.button>
                 <button onClick={resetGauntlet} className="w-full text-[9px] font-mono text-text-dim hover:text-magenta transition-colors">
                   RESET GAUNTLET
@@ -564,7 +854,8 @@ export default function Home() {
         </div>
 
         {/* Center — Arena */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 min-w-0 p-3 overflow-y-auto">
+        <div key={`center-${flickerKey}`} className={`flex-1 flex flex-col items-center gap-2 min-w-0 p-3 overflow-y-auto relative transition-all duration-500 justify-center ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.15s forwards, glow-surge 0.8s ease-out 0.65s" } : undefined}>
+
           {/* Gauntlet victory score */}
           {showGauntlet && isOver && lastScore > 0 && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
@@ -674,10 +965,29 @@ export default function Home() {
             </div>
           )}
 
-          {/* Analytics — below arena */}
+          {/* Analytics — below arena (collapsed by default, click to expand) */}
           {usage?.analytics && (
             <div className="w-full max-w-lg font-mono text-[9px]">
-              <div className="flex justify-end mb-1">
+              <div className="flex justify-between items-center mb-1">
+                <button
+                  onClick={() => {
+                    const el = document.getElementById("analytics-panels");
+                    if (el) el.classList.toggle("hidden");
+                    if (analyticsFirstTime) {
+                      localStorage.setItem("battleai_analytics_seen", "1");
+                      setAnalyticsFirstTime(false);
+                    }
+                  }}
+                  className={`text-[9px] font-mono transition-all ${
+                    analyticsFirstTime
+                      ? "text-cyan border border-cyan/40 rounded-sm px-3 py-1.5 bg-cyan/10 hover:bg-cyan/20 animate-pulse-glow"
+                      : "text-text-dim hover:text-cyan"
+                  }`}
+                >
+                  {analyticsFirstTime
+                    ? "◈ VIEW BATTLE ANALYTICS — SEE WHAT YOUR PROMPT DID"
+                    : "▸ ANALYTICS"}
+                </button>
                 <button
                   onClick={() => {
                     const lines: string[] = ["=== BATTLE ANALYTICS ===", ""];
@@ -725,7 +1035,7 @@ export default function Home() {
                   COPY STATS
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div id="analytics-panels" className="hidden grid grid-cols-2 gap-2">
                 {usage.analytics.red && <AnalyticsPanel data={usage.analytics.red} label="[P] PLAYER" color="#b44aff" />}
                 {usage.analytics.blue && <AnalyticsPanel data={usage.analytics.blue} label="[B] BOT" color="#39ff14" />}
               </div>
@@ -733,7 +1043,7 @@ export default function Home() {
           )}
 
           {/* SYSOP Report */}
-          <SysopReport gameState={gameState} usage={usage} isOver={isOver} onReport={(report) => {
+          <SysopReport gameState={gameState} usage={usage} isOver={isOver} playerPrompt={prompt} onReport={(report) => {
             // Save SYSOP report to last gauntlet history entry
             setGauntlet((prev) => {
               if (prev.history.length === 0) return prev;
@@ -742,14 +1052,65 @@ export default function Home() {
               return next;
             });
           }} />
+
+          {/* Post-battle debrief terminal — floating modal */}
+          {isOver && !runnerName && gameState && (
+            <PostBattleTerminal
+              gameState={gameState}
+              analytics={usage?.analytics}
+              onNameSubmit={(name) => {
+                setRunnerName(name);
+                localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
+              }}
+            />
+          )}
+
+          {/* Vibe Jam Portal */}
+          {isOver && (
+            <div className="w-full max-w-lg flex gap-2 mt-2">
+              <a
+                href={`https://jam.pieter.com/portal/2026?username=${encodeURIComponent(runnerName || "RUNNER")}&ref=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "battleia.vercel.app")}&hp=${gameState ? Math.round((gameState.fighters[0].hp / gameState.fighters[0].maxHp) * 100) : 50}`}
+                className="flex-1 text-center py-2 rounded-sm border border-purple/40 text-purple text-[10px] font-mono uppercase tracking-wider hover:bg-purple/10 transition-all"
+              >
+                ◈ VIBE JAM PORTAL →
+              </a>
+              {portalRef && (
+                <a
+                  href={`https://${portalRef}${portalParams ? `?${portalParams}` : ""}`}
+                  className="flex-1 text-center py-2 rounded-sm border border-cyan/40 text-cyan text-[10px] font-mono uppercase tracking-wider hover:bg-cyan/10 transition-all"
+                >
+                  ← RETURN TO {portalRef}
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right Panel — Intrusion Log */}
-        <div className="w-72 shrink-0 flex flex-col border-l border-border bg-bg-panel overflow-hidden">
+        <div key={`right-${flickerKey}`} className={`hidden lg:flex w-72 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
-            <CombatLog logs={gameState?.log ?? []} />
+            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
           </div>
         </div>
+        {/* Notification cards — bottom right */}
+        {uiVisible && !isFighting && !showOnboarding && (
+          <div className="fixed bottom-4 right-4 z-30 flex flex-col gap-2 max-w-xs">
+            {/* Lore message from SYSOP */}
+            <a href="/lore" className="group block bg-bg-panel border border-amber/30 rounded-sm p-3 hover:border-amber/60 transition-all"
+              style={{ boxShadow: "0 0 15px rgba(255,184,0,0.1)" }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 bg-amber rounded-full animate-pulse" />
+                <span className="text-amber text-[9px] font-mono uppercase tracking-widest">SYSOP TRANSMISSION</span>
+              </div>
+              <p className="text-text-secondary text-[10px] font-mono leading-relaxed">
+                &quot;I have a message for you, runner. Jack into the lore terminal.&quot;
+              </p>
+              <span className="text-amber/40 text-[8px] font-mono group-hover:text-amber transition-colors mt-1 block">
+                → READ FULL TRANSMISSION
+              </span>
+            </a>
+          </div>
+        )}
       </main>
     </div>
   );

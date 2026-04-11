@@ -160,20 +160,21 @@ export function Arena({ state }: ArenaProps) {
 
         if (dist > 2) {
           const sColor = FACTION_COLORS[shooter.faction] || "#ffffff";
-          // Offset angle so two shots don't overlap: red offsets up, blue offsets down
-          const angleOffset = log.fighter === "red" ? -6 : 6;
+          const angleOffset = log.fighter === "red" ? -4 : 4;
           const sx = shooter.x * CELL_SIZE + CELL_SIZE / 2 + PADDING;
           const sy = shooter.y * CELL_SIZE + CELL_SIZE / 2 + PADDING + 16 + angleOffset;
           const tx = target.x * CELL_SIZE + CELL_SIZE / 2 + PADDING;
           const ty = target.y * CELL_SIZE + CELL_SIZE / 2 + PADDING + 16 + angleOffset;
 
+          // Longer travel time scaled by distance for readable pulses
+          const travelFrames = Math.max(20, dist * 6);
           projectilesRef.current.push({
             sx, sy, tx, ty,
             x: sx, y: sy,
             color: sColor,
             hit: log.type === "hit",
             life: 0,
-            maxLife: 15,
+            maxLife: travelFrames + 12, // extra frames for impact/fade
             trail: [],
           });
         }
@@ -431,52 +432,106 @@ export function Arena({ state }: ArenaProps) {
         // Projectiles are rendered below in the animation section
       }
 
-      // Projectiles — animated bullets that travel from shooter to target
+      // Projectiles — data packet pulses traveling from shooter to target
       const projectiles = projectilesRef.current;
       for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
         p.life++;
 
-        // Lerp position from start to target
-        const t = Math.min(1, p.life / (p.maxLife * 0.6)); // arrive at 60% of life
-        p.x = p.sx + (p.tx - p.sx) * t;
-        p.y = p.sy + (p.ty - p.sy) * t;
+        const travelEnd = p.maxLife - 12; // frames dedicated to travel
+        const t = Math.min(1, p.life / travelEnd);
+        // Ease-out for deceleration feel on arrival
+        const eased = 1 - Math.pow(1 - t, 2);
+        p.x = p.sx + (p.tx - p.sx) * eased;
+        p.y = p.sy + (p.ty - p.sy) * eased;
 
-        // Save trail
+        // Trail — longer for visible data stream
         p.trail.push({ x: p.x, y: p.y });
-        if (p.trail.length > 6) p.trail.shift();
+        if (p.trail.length > 14) p.trail.shift();
 
-        const alpha = Math.max(0, 1 - p.life / p.maxLife);
+        const arrived = t >= 1;
+        const postImpactLife = arrived ? p.life - travelEnd : 0;
+        const alpha = arrived ? Math.max(0, 1 - postImpactLife / 12) : 1;
 
-        // Draw trail
-        if (p.trail.length > 1) {
-          ctx.beginPath();
-          ctx.moveTo(p.trail[0].x, p.trail[0].y);
-          for (let j = 1; j < p.trail.length; j++) {
-            ctx.lineTo(p.trail[j].x, p.trail[j].y);
+        if (!arrived || postImpactLife < 4) {
+          // Data packet trail — segmented dashes (not a smooth line)
+          const dx = p.tx - p.sx;
+          const dy = p.ty - p.sy;
+          const totalDist = Math.sqrt(dx * dx + dy * dy);
+          const nx = dx / totalDist;
+          const ny = dy / totalDist;
+
+          // Draw 3-4 trailing segments behind the head
+          const segLen = 4;
+          const segGap = 6;
+          const numSegs = 4;
+          for (let s = 0; s < numSegs; s++) {
+            const offset = s * (segLen + segGap);
+            const segX = p.x - nx * offset;
+            const segY = p.y - ny * offset;
+            // Don't draw segments behind the start
+            const fromStart = Math.sqrt((segX - p.sx) ** 2 + (segY - p.sy) ** 2);
+            if (fromStart < offset * 0.3) continue;
+
+            const segAlpha = alpha * (1 - s * 0.2);
+            const hexA = Math.floor(segAlpha * 255).toString(16).padStart(2, "0");
+            ctx.fillStyle = p.color + hexA;
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = s === 0 ? 10 : 4;
+            // Each segment is a small rectangle aligned to travel direction
+            ctx.save();
+            ctx.translate(segX, segY);
+            ctx.rotate(Math.atan2(dy, dx));
+            const w = s === 0 ? segLen + 2 : segLen;
+            const h = s === 0 ? 3 : 2;
+            ctx.fillRect(-w / 2, -h / 2, w, h);
+            ctx.restore();
+            ctx.shadowBlur = 0;
           }
-          ctx.strokeStyle = p.color + Math.floor(alpha * 0.4 * 255).toString(16).padStart(2, "0");
-          ctx.lineWidth = 1;
-          ctx.stroke();
+
+          // Glow line behind the packet (faint laser trace)
+          if (p.trail.length > 2) {
+            ctx.beginPath();
+            ctx.moveTo(p.trail[0].x, p.trail[0].y);
+            for (let j = 1; j < p.trail.length; j++) {
+              ctx.lineTo(p.trail[j].x, p.trail[j].y);
+            }
+            ctx.strokeStyle = p.color + Math.floor(alpha * 0.15 * 255).toString(16).padStart(2, "0");
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
         }
 
-        // Draw bullet head
-        ctx.fillStyle = p.color + Math.floor(alpha * 255).toString(16).padStart(2, "0");
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = p.hit ? 8 : 4;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.hit ? 3 : 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Impact flash at arrival
-        if (t >= 1 && p.life === Math.ceil(p.maxLife * 0.6)) {
+        // Impact flash
+        if (arrived && postImpactLife <= 8) {
           if (p.hit) {
-            // Impact burst
-            ctx.fillStyle = p.color + "88";
+            // Data breach flash — expanding ring + burst
+            const impactT = postImpactLife / 8;
+            const radius = 4 + impactT * 14;
+            const flashAlpha = 1 - impactT;
+            ctx.strokeStyle = p.color + Math.floor(flashAlpha * 200).toString(16).padStart(2, "0");
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(p.tx, p.ty, 8, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.arc(p.tx, p.ty, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            // Core flash
+            if (postImpactLife < 3) {
+              ctx.fillStyle = "#ffffff" + Math.floor(flashAlpha * 180).toString(16).padStart(2, "0");
+              ctx.beginPath();
+              ctx.arc(p.tx, p.ty, 5 - postImpactLife, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else {
+            // Miss — fizzle out with small sparks
+            if (postImpactLife < 4) {
+              const fizzAlpha = 1 - postImpactLife / 4;
+              ctx.fillStyle = p.color + Math.floor(fizzAlpha * 100).toString(16).padStart(2, "0");
+              for (let s = 0; s < 3; s++) {
+                const sx = p.tx + (Math.random() - 0.5) * 16;
+                const sy = p.ty + (Math.random() - 0.5) * 16;
+                ctx.fillRect(sx, sy, 2, 2);
+              }
+            }
           }
         }
 
@@ -546,11 +601,10 @@ export function Arena({ state }: ArenaProps) {
   return (
     <canvas
       ref={canvasRef}
-      className="border border-border-bright rounded-sm"
+      className="border border-border-bright rounded-sm w-full max-w-[446px]"
       style={{
         imageRendering: "pixelated" as const,
-        width: `${CANVAS_W}px`,
-        height: `${CANVAS_H}px`,
+        aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
       }}
     />
   );

@@ -92,6 +92,8 @@ export interface BattleConfig {
   maxTicks: number;
   tickDurationMs: number;
   maxHp: number;
+  playerHp?: number; // override player HP (defaults to maxHp)
+  allowedActions?: string[]; // restrict available actions
 }
 
 export const DEFAULT_CONFIG: BattleConfig = {

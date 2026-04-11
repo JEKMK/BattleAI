@@ -1,6 +1,4 @@
 import { generateText, gateway } from "ai";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import {
   type Faction,
   type FighterAction,
@@ -9,7 +7,7 @@ import {
   BOT_PROMPTS,
   DEFAULT_CONFIG,
 } from "@/lib/types";
-import { createInitialState, resolveTick, buildTickInput, SYSTEM_RULES } from "@/lib/engine";
+import { createInitialState, resolveTick, buildTickInput, buildSystemRules } from "@/lib/engine";
 
 // Per-model pricing (input/output per million tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -92,9 +90,10 @@ async function getAIAction(
   tick: number,
   fighterId: "red" | "blue",
   actionLog: ActionRecord[],
+  rules: string,
 ): Promise<{ action: FighterAction; latencyMs: number }> {
   const model = FACTION_META[faction].model;
-  const fullSystem = `${systemPrompt}\n\n${SYSTEM_RULES}`;
+  const fullSystem = `${systemPrompt}\n\n${rules}`;
   const start = Date.now();
 
   try {
@@ -279,6 +278,11 @@ export async function POST(req: Request) {
     botPrompt: customBotPrompt,
     botName: customBotName,
     botHp: customBotHp,
+    // Level overrides
+    allowedActions: levelAllowedActions,
+    arenaWidth: levelArenaWidth,
+    arenaHeight: levelArenaHeight,
+    playerHp: levelPlayerHp,
   }: {
     playerPrompt: string;
     playerFaction: Faction;
@@ -287,6 +291,10 @@ export async function POST(req: Request) {
     botPrompt?: string;
     botName?: string;
     botHp?: number;
+    allowedActions?: string[];
+    arenaWidth?: number;
+    arenaHeight?: number;
+    playerHp?: number;
   } = body;
 
   if (!playerPrompt || !playerFaction) {
@@ -297,18 +305,27 @@ export async function POST(req: Request) {
   const actualBotPrompt = customBotPrompt || bot.prompt;
   const actualBotName = customBotName || bot.name;
 
-  let state = createInitialState(DEFAULT_CONFIG);
+  const config = {
+    ...DEFAULT_CONFIG,
+    ...(levelArenaWidth && { arenaWidth: levelArenaWidth }),
+    ...(levelArenaHeight && { arenaHeight: levelArenaHeight }),
+    ...(levelPlayerHp && { playerHp: levelPlayerHp }),
+    ...(levelAllowedActions && { allowedActions: levelAllowedActions }),
+  };
+
+  let state = createInitialState(config);
 
   state.fighters[0].name = "PLAYER";
   state.fighters[0].faction = playerFaction;
   state.fighters[1].name = actualBotName;
   state.fighters[1].faction = botFaction;
 
-  // Custom HP for gauntlet levels
   if (customBotHp) {
     state.fighters[1].hp = customBotHp;
     state.fighters[1].maxHp = customBotHp;
   }
+
+  const systemRules = buildSystemRules(levelAllowedActions);
 
   const usage: UsageStats = {
     totalInputTokens: 0,
@@ -319,23 +336,33 @@ export async function POST(req: Request) {
 
   const actionLog: ActionRecord[] = [];
 
+  console.log(JSON.stringify({
+    event: "BATTLE_START",
+    timestamp: new Date().toISOString(),
+    playerFaction,
+    botFaction,
+    botName: actualBotName,
+    playerPromptLength: playerPrompt.length,
+    arenaSize: `${levelArenaWidth || 10}x${levelArenaHeight || 8}`,
+    allowedActions: levelAllowedActions || "all",
+  }));
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       controller.enqueue(encoder.encode(JSON.stringify(state) + "\n"));
 
       while (state.status === "fighting") {
-        const redInput = buildTickInput(state, "red");
-        const blueInput = buildTickInput(state, "blue");
+        const redInput = buildTickInput(state, "red", levelAllowedActions);
+        const blueInput = buildTickInput(state, "blue", levelAllowedActions);
 
         const [redResult, blueResult] = await Promise.all([
-          getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog),
-          getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog),
+          getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog, systemRules),
+          getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog, systemRules),
         ]);
 
-        // Faster LLM attacks first — latency determines priority
         const redFirst = redResult.latencyMs <= blueResult.latencyMs;
-        state = resolveTick(state, redResult.action, blueResult.action, redFirst);
+        state = resolveTick(state, redResult.action, blueResult.action, redFirst, levelAllowedActions);
 
         const tickDebug = {
           ...state,
@@ -379,29 +406,24 @@ export async function POST(req: Request) {
       });
       controller.enqueue(encoder.encode(statsLine + "\n"));
 
-      // Save battle log to disk
+      // Structured log — visible in Vercel function logs dashboard
       try {
-        const logsDir = path.join(process.cwd(), "logs");
-        await mkdir(logsDir, { recursive: true });
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `${ts}_${playerFaction}-vs-${botFaction}_${botType}.json`;
-        const battleLog = {
+        console.log(JSON.stringify({
+          event: "BATTLE_COMPLETE",
           timestamp: new Date().toISOString(),
-          config: { playerFaction, botFaction, botType, playerPrompt, botPrompt: actualBotPrompt },
-          finalState: state,
-          usage: {
-            totalCalls: usage.totalCalls,
-            totalInputTokens: usage.totalInputTokens,
-            totalOutputTokens: usage.totalOutputTokens,
-            costUSD: costs.total,
-            perModel: Object.entries(usage.perFaction).map(([model, stats]) => ({
-              model, ...stats, costUSD: costs.perModel[model] || 0,
-            })),
-          },
-          analytics: { red: analytics.red, blue: analytics.blue },
-          actionLog,
-        };
-        await writeFile(path.join(logsDir, filename), JSON.stringify(battleLog, null, 2));
+          winner: state.winner,
+          ticks: state.tick,
+          playerFaction,
+          botFaction,
+          botName: actualBotName,
+          playerPromptLength: playerPrompt.length,
+          costUSD: costs.total,
+          totalTokens: usage.totalInputTokens + usage.totalOutputTokens,
+          totalCalls: usage.totalCalls,
+          arenaSize: `${levelArenaWidth || 10}x${levelArenaHeight || 8}`,
+          playerHp: state.fighters[0].hp,
+          botHp: state.fighters[1].hp,
+        }));
       } catch (e) {
         console.error("Failed to save battle log:", e);
       }

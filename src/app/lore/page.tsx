@@ -11,40 +11,40 @@ interface Line {
 }
 
 const INTRO_SEQUENCE: Line[] = [
-  { text: "ONO-SENDAI CYBERSPACE VII — BOOT SEQUENCE", type: "system", delay: 200 },
-  { text: "LOADING NEURAL INTERFACE...", type: "system", delay: 200 },
-  { text: "CHIBA CITY RELAY NODE — CONNECTED", type: "system", delay: 200 },
+  { text: "ONO-SENDAI CYBERSPACE VII — BOOT SEQUENCE", type: "system", delay: 8 },
+  { text: "LOADING NEURAL INTERFACE...", type: "system", delay: 8 },
+  { text: "CHIBA CITY RELAY NODE — CONNECTED", type: "system", delay: 8 },
+  { text: "", type: "pause", delay: 300 },
+  { text: "Well, well. Another one jacking in from the Sprawl.", type: "sysop", delay: 18 },
   { text: "", type: "pause", delay: 600 },
-  { text: "Well, well. Another one jacking in from the Sprawl.", type: "sysop", delay: 22 },
-  { text: "", type: "pause", delay: 1200 },
-  { text: "I'm SYSOP. I've been running inside this matrix since before Tessier-Ashpool built their first ICE wall. I watched Dixie Flatline die. Twice.", type: "sysop", delay: 15 },
-  { text: "", type: "pause", delay: 2000 },
-  { text: "And now you want to play console cowboy.", type: "sysop", delay: 25 },
-  { text: "", type: "pause", delay: 1200 },
-  { text: "Here's the deal, rookie.", type: "emphasis", delay: 30 },
+  { text: "I'm SYSOP. I've been running inside this matrix since before Tessier-Ashpool built their first ICE wall. I watched Dixie Flatline die. Twice.", type: "sysop", delay: 12 },
   { text: "", type: "pause", delay: 800 },
-  { text: "The zaibatsus — Anthropic, Google, OpenAI — they build constructs. Neural combat programs forged in silicon. Each one thinks different. Some are fast like a Chiba street razorgirl. Some are precise like Wintermute on a good day. None of them care if you live or flatline.", type: "sysop", delay: 12 },
-  { text: "", type: "pause", delay: 2500 },
-  { text: "You write the neural template. What your construct knows, what it does — that's on you. No simstim, no remote. Once it's in the matrix, it fights alone.", type: "sysop", delay: 12 },
-  { text: "", type: "pause", delay: 2000 },
-  { text: "Win and you crack their code. See how they think. Take what's useful.", type: "emphasis", delay: 22 },
-  { text: "", type: "pause", delay: 1500 },
-  { text: "Lose... and yours flatlines. Burned out like a Sense/Net ice-breaker on a bad run. The matrix doesn't do second chances.", type: "sysop", delay: 15 },
-  { text: "", type: "pause", delay: 1500 },
+  { text: "And now you want to play console cowboy.", type: "sysop", delay: 18 },
+  { text: "", type: "pause", delay: 600 },
+  { text: "Here's the deal, rookie.", type: "emphasis", delay: 22 },
+  { text: "", type: "pause", delay: 400 },
+  { text: "The zaibatsus — Anthropic, Google, OpenAI — they build constructs. Neural combat programs forged in silicon. Each one thinks different. Some are fast like a Chiba street razorgirl. Some are precise like Wintermute on a good day. None of them care if you live or flatline.", type: "sysop", delay: 8 },
+  { text: "", type: "pause", delay: 800 },
+  { text: "You write the neural template. What your construct knows, what it does — that's on you. No simstim, no remote. Once it's in the matrix, it fights alone.", type: "sysop", delay: 10 },
+  { text: "", type: "pause", delay: 600 },
+  { text: "Win and you crack their code. See how they think. Take what's useful.", type: "emphasis", delay: 18 },
+  { text: "", type: "pause", delay: 500 },
+  { text: "Lose... and yours flatlines. Burned out like a Sense/Net ice-breaker on a bad run. The matrix doesn't do second chances.", type: "sysop", delay: 12 },
+  { text: "", type: "pause", delay: 500 },
 ];
 
 const POST_NAME_SEQUENCE: Line[] = [
-  { text: "RUNNER PROFILE INITIALIZED — ONO-SENDAI LINKED", type: "system", delay: 200 },
+  { text: "RUNNER PROFILE INITIALIZED — ONO-SENDAI LINKED", type: "system", delay: 8 },
+  { text: "", type: "pause", delay: 300 },
+  { text: "Most runners flatline before level 3. Same as Chiba — the weak ones don't last past the first alley.", type: "sysop", delay: 12 },
   { text: "", type: "pause", delay: 600 },
-  { text: "Most runners flatline before level 3. Same as Chiba — the weak ones don't last past the first alley.", type: "sysop", delay: 15 },
-  { text: "", type: "pause", delay: 1800 },
-  { text: "Your Ono-Sendai has limited RAM. Write what you can. Crack ICE, earn more. The rest... you figure out.", type: "sysop", delay: 15 },
-  { text: "", type: "pause", delay: 1800 },
-  { text: "10 barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "emphasis", delay: 22 },
-  { text: "", type: "pause", delay: 1500 },
-  { text: "I won't tell you how to fight. Dixie learned the hard way and so will you. Watch what your construct does. Read the aftermath. The patterns are there if you're smart enough to see them.", type: "sysop", delay: 12 },
-  { text: "", type: "pause", delay: 2000 },
-  { text: "The matrix is waiting, console cowboy.", type: "emphasis", delay: 30 },
+  { text: "Your Ono-Sendai has limited RAM. Write what you can. Crack ICE, earn more. The rest... you figure out.", type: "sysop", delay: 12 },
+  { text: "", type: "pause", delay: 600 },
+  { text: "15 barriers ahead. Nobody's cracked them all. Not since Screaming Fist.", type: "emphasis", delay: 18 },
+  { text: "", type: "pause", delay: 500 },
+  { text: "I won't tell you how to fight. Dixie learned the hard way and so will you. Watch what your construct does. Read the aftermath. The patterns are there if you're smart enough to see them.", type: "sysop", delay: 8 },
+  { text: "", type: "pause", delay: 600 },
+  { text: "The matrix is waiting, console cowboy.", type: "emphasis", delay: 22 },
   { text: "", type: "pause", delay: 600 },
 ];
 
@@ -117,6 +117,15 @@ export default function LorePage() {
   const intro = useTypewriter(INTRO_SEQUENCE, true);
   const post = useTypewriter(POST_NAME_SEQUENCE, phase === "post" || phase === "ready");
 
+  // ESC to go back to game
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") router.push("/");
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [router]);
+
   // Scroll to bottom on new content
   useEffect(() => {
     if (scrollRef.current) {
@@ -177,7 +186,7 @@ export default function LorePage() {
             <span className="text-cyan text-xs font-mono animate-flicker">&gt;_</span>
             <span className="text-cyan text-xs font-mono tracking-widest">ONO-SENDAI CYBERSPACE VII</span>
           </div>
-          <span className="text-text-dim text-[9px] font-mono">CHIBA CITY NODE // ENCRYPTED</span>
+          <span className="text-text-dim text-[9px] font-mono">ESC TO EXIT // CHIBA CITY NODE</span>
         </div>
 
         {/* Terminal body */}
@@ -247,23 +256,30 @@ export default function LorePage() {
           {/* Jack In button */}
           {phase === "ready" && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="mt-6 text-center"
+              className="mt-4"
             >
-              <motion.button
-                onClick={jackIn}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-12 py-3 border-2 border-cyan text-cyan font-mono font-bold text-sm uppercase tracking-[0.5em] rounded-sm bg-cyan/5 hover:bg-cyan/15 transition-all"
-                style={{ boxShadow: "var(--glow-cyan)" }}
-              >
-                JACK IN
-              </motion.button>
-              <p className="text-text-dim text-[9px] font-mono mt-3">
-                // The matrix doesn&apos;t wait. Neither should you.
-              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-cyan">&gt; Jack in?</span>
+                <span className="text-text-dim">(Y/n)</span>
+                <input
+                  type="text"
+                  maxLength={3}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const v = (e.target as HTMLInputElement).value.trim().toLowerCase();
+                      if (v === "" || v === "y" || v === "yes") jackIn();
+                    }
+                  }}
+                  className="w-8 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+              </div>
             </motion.div>
           )}
         </div>

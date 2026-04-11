@@ -5,6 +5,7 @@ import type { LogEntry } from "@/lib/types";
 
 interface CombatLogProps {
   logs: LogEntry[];
+  simplified?: boolean;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -25,7 +26,30 @@ const FIGHTER_PREFIX: Record<string, string> = {
   blue: "text-neon-green",
 };
 
-export function CombatLog({ logs }: CombatLogProps) {
+function simplifyMessage(msg: string, type: string): string {
+  const dmgMatch = msg.match(/-(\d+)/);
+  const hpMatch = msg.match(/\[(\d+)\/(\d+)\]/);
+  const dmg = dmgMatch ? dmgMatch[1] : null;
+  const hp = hpMatch ? `[${hpMatch[1]}/${hpMatch[2]}]` : "";
+
+  if (type === "hit") {
+    if (msg.includes("Hammer") || msg.includes("MEGA")) return `HAMMER -${dmg} ${hp}`;
+    if (msg.includes("Spike") || msg.includes("COMBO Spike")) return `SPIKE -${dmg} ${hp}`;
+    if (msg.includes("Burn") || msg.includes("COMBO Burn")) return `BURN -${dmg} ${hp}`;
+    if (msg.includes("Firewall")) return `WALL -${dmg} ${hp}`;
+    return dmg ? `-${dmg} ${hp}` : msg;
+  }
+  if (type === "miss") return "MISS";
+  if (type === "block") return "SHIELD UP";
+  if (type === "dodge") return "GHOST";
+  if (type === "parry") return msg.includes("triggers") || msg.includes("reflects") || msg.includes("counter") ? "BLACK ICE HIT!" : "BLACK ICE";
+  if (type === "stun") return "STUNNED";
+  if (type === "ko") return "FLATLINED";
+  if (type === "system") return msg;
+  return msg;
+}
+
+export function CombatLog({ logs, simplified = false }: CombatLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -76,7 +100,7 @@ export function CombatLog({ logs }: CombatLogProps) {
               {log.fighter === "red" ? "[P]" : "[B]"}
             </span>
             <span className={TYPE_COLORS[log.type] || "text-text-primary"}>
-              {log.message}
+              {simplified ? simplifyMessage(log.message, log.type) : log.message}
             </span>
           </div>
         ))}
