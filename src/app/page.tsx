@@ -6,6 +6,7 @@ import { Arena } from "@/components/arena";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
 import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
+import { PostBattleTerminal } from "@/components/post-battle-terminal";
 import { BootLines } from "@/components/boot-sequence";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
@@ -1052,37 +1053,16 @@ export default function Home() {
             });
           }} />
 
-          {/* Post-battle name input — only if no name yet */}
-          {isOver && !runnerName && (
-            <div className="w-full max-w-lg mt-2">
-              <div className="bg-bg-panel border border-neon-green/20 rounded-sm p-3">
-                <div className="text-neon-green/70 text-[11px] font-mono mb-2">
-                  <span className="text-neon-green/40">SYSOP&gt; </span>
-                  {gameState?.winner === "red"
-                    ? "Not bad for someone with no name. What do they call you, runner?"
-                    : "Flatlined on the first run. Typical. At least tell me your name before you try again."}
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-neon-green text-sm">&gt;</span>
-                  <input
-                    type="text"
-                    autoFocus
-                    maxLength={20}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const name = (e.target as HTMLInputElement).value.trim().toUpperCase() || "ANONYMOUS";
-                        setRunnerName(name);
-                        localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
-                      }
-                    }}
-                    className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent flex-1"
-                    spellCheck={false}
-                    autoComplete="off"
-                  />
-                  <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
-                </div>
-              </div>
-            </div>
+          {/* Post-battle debrief terminal — floating modal */}
+          {isOver && !runnerName && gameState && (
+            <PostBattleTerminal
+              gameState={gameState}
+              analytics={usage?.analytics}
+              onNameSubmit={(name) => {
+                setRunnerName(name);
+                localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
+              }}
+            />
           )}
 
           {/* Vibe Jam Portal */}
