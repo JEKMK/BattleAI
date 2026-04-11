@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
 export function PostBattleTerminal({ gameState, analytics, onNameSubmit }: PostBattleTerminalProps) {
   const [phase, setPhase] = useState<"stats" | "motivate" | "name">("stats");
   const [visibleLines, setVisibleLines] = useState(0);
+  const [nameValue, setNameValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -167,15 +168,20 @@ export function PostBattleTerminal({ gameState, analytics, onNameSubmit }: PostB
                     <span className="text-neon-green/40">SYSOP&gt; </span>
                     What do they call you, runner?
                   </div>
-                  <div className="flex items-center gap-1 cursor-text" onClick={() => inputRef.current?.focus()}>
-                    <span className="text-neon-green">&gt;</span>
-                    <input ref={inputRef} type="text" maxLength={20} autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSubmit((e.target as HTMLInputElement).value);
-                      }}
-                      className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent flex-1"
-                      spellCheck={false} autoComplete="off" />
-                    <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+                  <div className="flex items-center cursor-text" onClick={() => inputRef.current?.focus()}>
+                    <span className="text-neon-green mr-1">&gt;</span>
+                    <div className="relative">
+                      <input ref={inputRef} type="text" maxLength={20} autoFocus
+                        value={nameValue}
+                        onChange={(e) => setNameValue(e.target.value.slice(0, 20).toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSubmit(nameValue);
+                        }}
+                        className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent w-48"
+                        spellCheck={false} autoComplete="off" />
+                      <span className="absolute inline-block w-2 h-4 bg-neon-green/80 pointer-events-none cursor-blink"
+                        style={{ left: `${(nameValue.length * 0.55) + 0.15}em`, top: '3px' }} />
+                    </div>
                   </div>
                   <a href="/lore" className="text-[8px] font-mono text-amber/30 hover:text-amber transition-colors mt-3 inline-block">
                     [FULL TRANSMISSION — READ THE LORE]

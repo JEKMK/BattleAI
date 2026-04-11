@@ -179,7 +179,7 @@ export function SysopTerminal({ onDismiss, existingName }: SysopTerminalProps) {
     }`}>
       {line.type === "sysop" && <span className="text-neon-green/40">SYSOP&gt; </span>}
       {line.text}
-      {isLast && showCursor && <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse ml-0.5 align-middle" />}
+      {isLast && showCursor && <span className="inline-block w-2 h-4 bg-neon-green/80 cursor-blink ml-0.5 align-middle" />}
     </div>
   );
 
@@ -224,7 +224,7 @@ export function SysopTerminal({ onDismiss, existingName }: SysopTerminalProps) {
                     {line}
                   </div>
                 ))}
-                {!bootDone && <span className="inline-block w-2 h-3 bg-neon-green/50 animate-pulse" />}
+                {!bootDone && <span className="inline-block w-2 h-3 bg-neon-green/50 cursor-blink" />}
                 {bootDone && <div className="text-neon-green text-[10px] mt-2 font-bold">SYSTEM READY</div>}
               </div>
             )}
@@ -295,7 +295,7 @@ export function SysopTerminal({ onDismiss, existingName }: SysopTerminalProps) {
                 </div>
                 <div className="bg-bg-surface border border-cyan/20 rounded-sm p-2 mb-2">
                   <span className="text-cyan text-xs font-mono">&quot;{helpLine}&quot;</span>
-                  {!helpDone && <span className="inline-block w-2 h-3 bg-cyan/80 animate-pulse ml-0.5 align-middle" />}
+                  {!helpDone && <span className="inline-block w-2 h-3 bg-cyan/80 cursor-blink ml-0.5 align-middle" />}
                 </div>
 
                 {phase === "helpConfirm" && (
@@ -320,7 +320,7 @@ export function SysopTerminal({ onDismiss, existingName }: SysopTerminalProps) {
                         }}
                         className="w-8 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
                         spellCheck={false} autoComplete="off" />
-                      <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+                      <span className="inline-block w-2 h-4 bg-neon-green/80 cursor-blink" />
                     </div>
                   </motion.div>
                 )}
@@ -348,7 +348,7 @@ export function SysopTerminal({ onDismiss, existingName }: SysopTerminalProps) {
                     }}
                     className="w-8 bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase"
                     spellCheck={false} autoComplete="off" />
-                  <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+                  <span className="inline-block w-2 h-4 bg-neon-green/80 cursor-blink" />
                 </div>
                 <a href="/lore" onClick={(e) => e.stopPropagation()}
                   className="text-[9px] font-mono text-amber/30 hover:text-amber transition-colors mt-2 inline-block">
