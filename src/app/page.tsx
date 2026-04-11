@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
-import { SysopTerminal } from "@/components/sysop-terminal";
+import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
 import { BootLines } from "@/components/boot-sequence";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
@@ -447,14 +447,37 @@ export default function Home() {
   }, [hasBooted, startBattleRaw]);
 
   // Triggered by "ENTER THE MATRIX" — boot sequence to reveal UI
-  const enterMatrix = useCallback((name: string) => {
+  const enterMatrix = useCallback((result: OnboardingResult) => {
     setShowOnboarding(false);
-    setRunnerName(name);
     localStorage.setItem("battleai_onboarding_done", "1");
-    bootPurposeRef.current = "onboarding";
-    setBootPhase("blackout");
-    setTimeout(() => setBootPhase("boot"), 500);
-  }, []);
+
+    if (result.mode === "helped" && result.prompt) {
+      // Fill prompt and auto-start first battle
+      setPrompt(result.prompt);
+      bootPurposeRef.current = "battle";
+      pendingBattleRef.current = undefined; // will use startGauntletBattle after boot
+      setBootPhase("blackout");
+      setTimeout(() => setBootPhase("boot"), 500);
+      // Auto-start after boot finishes
+      setTimeout(() => {
+        const lvl = GAUNTLET_LEVELS[gauntlet.currentLevel];
+        if (lvl) {
+          setGauntletLevelPlayed(gauntlet.currentLevel);
+          setCrackedPrompt(lvl.prompt);
+          pendingBattleRef.current = {
+            botPrompt: lvl.prompt, botName: lvl.name, botFaction: lvl.faction, botHp: lvl.hp,
+            allowedActions: lvl.allowedActions, arenaWidth: lvl.arenaWidth, arenaHeight: lvl.arenaHeight, playerHp: lvl.playerHp,
+          };
+        }
+      }, 100);
+    } else {
+      // Write mode — show UI with spotlight on empty prompt
+      bootPurposeRef.current = "onboarding";
+      setPrompt("");
+      setBootPhase("blackout");
+      setTimeout(() => setBootPhase("boot"), 500);
+    }
+  }, [gauntlet.currentLevel]);
 
   // Boot sequence wrapper for battles
   const startBattle = useCallback((overrides?: Parameters<typeof startBattleRaw>[0]) => {
@@ -598,7 +621,7 @@ export default function Home() {
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               className="absolute inset-0 z-30 bg-bg-deep flex items-center justify-center"
             >
-              <SysopTerminal onDismiss={enterMatrix} quickMode existingName={runnerName} />
+              <SysopTerminal onDismiss={enterMatrix} existingName={runnerName} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1028,6 +1051,39 @@ export default function Home() {
               return next;
             });
           }} />
+
+          {/* Post-battle name input — only if no name yet */}
+          {isOver && !runnerName && (
+            <div className="w-full max-w-lg mt-2">
+              <div className="bg-bg-panel border border-neon-green/20 rounded-sm p-3">
+                <div className="text-neon-green/70 text-[11px] font-mono mb-2">
+                  <span className="text-neon-green/40">SYSOP&gt; </span>
+                  {gameState?.winner === "red"
+                    ? "Not bad for someone with no name. What do they call you, runner?"
+                    : "Flatlined on the first run. Typical. At least tell me your name before you try again."}
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-neon-green text-sm">&gt;</span>
+                  <input
+                    type="text"
+                    autoFocus
+                    maxLength={20}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const name = (e.target as HTMLInputElement).value.trim().toUpperCase() || "ANONYMOUS";
+                        setRunnerName(name);
+                        localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
+                      }
+                    }}
+                    className="bg-transparent border-none outline-none text-neon-green font-mono text-sm uppercase caret-transparent flex-1"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  <span className="inline-block w-2 h-4 bg-neon-green/80 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Vibe Jam Portal */}
           {isOver && (
