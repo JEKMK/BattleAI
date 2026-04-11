@@ -6,7 +6,8 @@ AI vs AI combat arena. Players write prompts, choose factions (LLM providers), a
 - Build: `pnpm build`
 - Dev: `pnpm dev`
 - Lint: `pnpm lint`
-- Test: (none yet)
+- Test: `pnpm test` (Playwright E2E)
+- Test UI: `pnpm test:ui` (Playwright interactive)
 
 ## Stack
 - Next.js 16, React 19, TypeScript, Tailwind CSS 4, Framer Motion
