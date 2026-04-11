@@ -192,6 +192,8 @@ export default function Home() {
   const [portalParams, setPortalParams] = useState<string>(""); // all original portal params to forward back
   const [autoStartPortal, setAutoStartPortal] = useState(false);
   const [analyticsFirstTime, setAnalyticsFirstTime] = useState(false);
+  const [runnerToken, setRunnerToken] = useState<string | null>(null);
+  const [runnerRank, setRunnerRank] = useState<{ rank: number; total: number } | null>(null);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -245,6 +247,14 @@ export default function Home() {
       const booted = localStorage.getItem("battleai_first_boot");
       if (booted) setHasBooted(true);
     }
+
+    // Runner token for leaderboard persistence
+    let token = localStorage.getItem("battleai_token");
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem("battleai_token", token);
+    }
+    setRunnerToken(token);
 
     // Check if analytics has been seen
     if (!localStorage.getItem("battleai_analytics_seen")) setAnalyticsFirstTime(true);
@@ -336,6 +346,47 @@ export default function Home() {
       return next;
     });
   }, [isFighting, gameState, gauntletLevelPlayed]);
+
+  // Sync score to server after battle
+  useEffect(() => {
+    if (isFighting || !gameState || !runnerToken) return;
+    const isFinished = gameState.status === "ko" || gameState.status === "timeout";
+    if (!isFinished) return;
+
+    const won = gameState.winner === "red";
+    const isDraw = gameState.winner === "draw";
+
+    // Find the level that was fought (use latest history entry's level, or 0)
+    const latestHistory = gauntlet.history[gauntlet.history.length - 1];
+    const levelNum = latestHistory?.level ?? 0;
+    const levelDef = GAUNTLET_LEVELS.find(l => l.level === levelNum);
+
+    fetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: runnerToken,
+        name: runnerName || "ANONYMOUS",
+        level: levelNum,
+        won,
+        ticks: gameState.tick,
+        hpLeft: gameState.fighters[0].hp,
+        enemyHpMax: levelDef?.hp ?? gameState.fighters[1].maxHp,
+        faction,
+        wins: gauntlet.wins,
+        losses: gauntlet.losses,
+        draws: gauntlet.draws,
+        ram: gauntlet.ramUnlocked,
+        currentLevel: gauntlet.currentLevel,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.rank) setRunnerRank({ rank: data.rank, total: data.totalRunners });
+      })
+      .catch(() => { /* silent — leaderboard is best-effort */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFighting, gameState?.status]);
 
   const startBattleRaw = useCallback(async (overrides?: {
     botPrompt: string; botName: string; botFaction: Faction; botHp: number;
@@ -552,6 +603,9 @@ export default function Home() {
               FREE RUN
             </button>
           </div>
+          <a href="/leaderboard" className="text-[9px] font-mono text-amber/50 hover:text-amber transition-colors hidden lg:inline">
+            RANKING
+          </a>
         </div>
         <div className="flex items-center gap-2 lg:gap-4 font-mono text-[10px]">
           {hydrated && showGauntlet && (
@@ -1058,6 +1112,7 @@ export default function Home() {
             <PostBattleTerminal
               gameState={gameState}
               analytics={usage?.analytics}
+              rank={runnerRank}
               onNameSubmit={(name) => {
                 setRunnerName(name);
                 localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
