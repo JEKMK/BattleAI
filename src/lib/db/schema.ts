@@ -11,10 +11,18 @@ export const runners = pgTable("runners", {
   ram: integer("ram").notNull().default(200),
   currentLevel: integer("current_level").notNull().default(0),
   bestScoreDate: timestamp("best_score_date", { withTimezone: true }),
+  // PVP fields
+  streetCred: integer("street_cred").notNull().default(1000),
+  defensePrompt: text("defense_prompt"),
+  defenseFaction: text("defense_faction").notNull().default("anthropic"),
+  pvpWins: integer("pvp_wins").notNull().default(0),
+  pvpLosses: integer("pvp_losses").notNull().default(0),
+  lastHackedAt: timestamp("last_hacked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_runners_total_score").on(t.totalScore),
+  index("idx_runners_street_cred").on(t.streetCred),
 ]);
 
 export const battleResults = pgTable("battle_results", {
@@ -30,4 +38,21 @@ export const battleResults = pgTable("battle_results", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_battle_results_runner").on(t.runnerId),
+]);
+
+export const pvpResults = pgTable("pvp_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  attackerId: uuid("attacker_id").notNull().references(() => runners.id),
+  defenderId: uuid("defender_id").notNull().references(() => runners.id),
+  attackerWon: boolean("attacker_won").notNull(),
+  attackerCredChange: integer("attacker_cred_change").notNull(),
+  defenderCredChange: integer("defender_cred_change").notNull(),
+  ramTransferred: integer("ram_transferred").notNull().default(0),
+  ticks: integer("ticks").notNull(),
+  attackerHp: integer("attacker_hp").notNull(),
+  defenderHp: integer("defender_hp").notNull(),
+  seenByDefender: boolean("seen_by_defender").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_pvp_defender_unseen").on(t.defenderId),
 ]);
