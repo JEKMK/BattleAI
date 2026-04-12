@@ -12,6 +12,7 @@ interface PostBattleTerminalProps {
   };
   onNameSubmit: (name: string) => void;
   rank?: { rank: number; total: number } | null;
+  onShowLeaderboard?: () => void;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -19,7 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   block: "SHIELD", dodge: "GHOST", parry: "BLACK ICE", none: "IDLE",
 };
 
-export function PostBattleTerminal({ gameState, analytics, onNameSubmit, rank }: PostBattleTerminalProps) {
+export function PostBattleTerminal({ gameState, analytics, onNameSubmit, rank, onShowLeaderboard }: PostBattleTerminalProps) {
   const [phase, setPhase] = useState<"stats" | "motivate" | "name">("stats");
   const [visibleLines, setVisibleLines] = useState(0);
   const [nameValue, setNameValue] = useState("");
@@ -196,9 +197,9 @@ export function PostBattleTerminal({ gameState, analytics, onNameSubmit, rank }:
                     <a href="/lore" className="text-[8px] font-mono text-amber/30 hover:text-amber transition-colors">
                       [READ THE LORE]
                     </a>
-                    <a href="/leaderboard" className="text-[8px] font-mono text-cyan/30 hover:text-cyan transition-colors">
+                    <button onClick={onShowLeaderboard} className="text-[8px] font-mono text-cyan/30 hover:text-cyan transition-colors">
                       [LEADERBOARD]
-                    </a>
+                    </button>
                   </div>
                 </motion.div>
               )}
