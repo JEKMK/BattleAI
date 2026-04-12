@@ -9,6 +9,7 @@ import { SysopTerminal, type OnboardingResult } from "@/components/sysop-termina
 import { PostBattleTerminal } from "@/components/post-battle-terminal";
 import { BootLines } from "@/components/boot-sequence";
 import { LeaderboardTerminal } from "@/components/leaderboard-terminal";
+import { ZaibatsuWar } from "@/components/zaibatsu-war";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, TUTORIAL_COUNT, calculateScore, type GauntletState } from "@/lib/gauntlet";
@@ -742,6 +743,11 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Zaibatsu War — global faction ranking */}
+          {showGauntlet && hydrated && (
+            <ZaibatsuWar playerFaction={faction} />
+          )}
+
           {/* Gauntlet levels or Free config */}
           {showGauntlet ? (
             <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
@@ -1176,6 +1182,7 @@ export default function Home() {
         <LeaderboardTerminal
           onClose={() => setShowLeaderboard(false)}
           runnerName={runnerName}
+          playerFaction={faction}
         />
       )}
     </div>

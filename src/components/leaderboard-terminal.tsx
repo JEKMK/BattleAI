@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TUTORIAL_COUNT } from "@/lib/gauntlet";
+import { ZaibatsuWar } from "@/components/zaibatsu-war";
+import type { Faction } from "@/lib/types";
 
 interface RunnerRow {
   rank: number;
@@ -19,9 +21,10 @@ interface RunnerRow {
 interface LeaderboardTerminalProps {
   onClose: () => void;
   runnerName?: string | null;
+  playerFaction?: Faction;
 }
 
-export function LeaderboardTerminal({ onClose, runnerName }: LeaderboardTerminalProps) {
+export function LeaderboardTerminal({ onClose, runnerName, playerFaction }: LeaderboardTerminalProps) {
   const [runners, setRunners] = useState<RunnerRow[]>([]);
   const [myRank, setMyRank] = useState<number | undefined>();
   const [total, setTotal] = useState(0);
@@ -103,6 +106,9 @@ export function LeaderboardTerminal({ onClose, runnerName }: LeaderboardTerminal
                 </span>
               </div>
             )}
+
+            {/* Zaibatsu War */}
+            {playerFaction && <ZaibatsuWar playerFaction={playerFaction} />}
 
             {/* Table */}
             <div className="overflow-y-auto flex-1">
