@@ -44,3 +44,4 @@ logs/
 playwright-report/
 test-results/
 .env*.local
+.claude/worktrees/
