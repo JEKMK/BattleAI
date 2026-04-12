@@ -6,7 +6,7 @@ import { calculateScore } from "@/lib/gauntlet";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { token, name, level, won, ticks, hpLeft, enemyHpMax, faction, wins, losses, draws, ram, currentLevel } = body;
+    const { token, name, level, won, ticks, hpLeft, enemyHpMax, faction, wins, losses, draws, ram, currentLevel, defensePrompt, defenseFaction } = body;
 
     if (!token || level == null || won == null || ticks == null || hpLeft == null || enemyHpMax == null) {
       return Response.json({ error: "Missing fields" }, { status: 400 });
@@ -29,6 +29,8 @@ export async function POST(req: Request) {
         ram: ram || 200,
         currentLevel: currentLevel || 0,
         bestScoreDate: score > 0 ? new Date() : null,
+        ...(defensePrompt && { defensePrompt }),
+        ...(defenseFaction && { defenseFaction }),
       }).returning();
       runner = created;
     } else {
@@ -47,6 +49,8 @@ export async function POST(req: Request) {
           currentLevel: currentLevel != null ? currentLevel : runner.currentLevel,
           bestScoreDate: newBest,
           updatedAt: new Date(),
+          ...(defensePrompt && { defensePrompt }),
+          ...(defenseFaction && { defenseFaction }),
         })
         .where(eq(runners.id, runner.id));
     }

@@ -10,9 +10,12 @@ import { PostBattleTerminal } from "@/components/post-battle-terminal";
 import { BootLines } from "@/components/boot-sequence";
 import { LeaderboardTerminal } from "@/components/leaderboard-terminal";
 import { ZaibatsuWar } from "@/components/zaibatsu-war";
+import { PvpTargets } from "@/components/pvp-targets";
+import { PvpNotificationOverlay } from "@/components/pvp-notification";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, TUTORIAL_COUNT, calculateScore, type GauntletState } from "@/lib/gauntlet";
+import type { PvpTarget, PvpNotification, PvpBattleResult } from "@/lib/pvp";
 
 interface FighterAnalytics {
   moves: Record<string, number>;
@@ -197,6 +200,16 @@ export default function Home() {
   const [runnerToken, setRunnerToken] = useState<string | null>(null);
   const [runnerRank, setRunnerRank] = useState<{ rank: number; total: number } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  // PVP state
+  type GameMode = "gauntlet" | "free" | "pvp";
+  const [gameMode, setGameMode] = useState<GameMode>("gauntlet");
+  const [streetCred, setStreetCred] = useState(1000);
+  const [pvpResult, setPvpResult] = useState<PvpBattleResult | null>(null);
+  const pvpTargetRef = useRef<PvpTarget | null>(null);
+  const [pvpNotifications, setPvpNotifications] = useState<PvpNotification[]>([]);
+  const [showPvpNotifications, setShowPvpNotifications] = useState(false);
+  const [pvpUnlocked, setPvpUnlocked] = useState(false);
+  const [pvpJustUnlocked, setPvpJustUnlocked] = useState(false);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -266,8 +279,28 @@ export default function Home() {
     const battles = parseInt(localStorage.getItem("battleai_free_battles") || "0", 10);
     setFreeBattles(battles);
 
+    // PVP unlock check
+    if (localStorage.getItem("battleai_pvp_unlocked")) setPvpUnlocked(true);
+
     setShowGauntlet(true);
     setHydrated(true);
+
+    // Check PVP notifications after hydration
+    const runnerTk = localStorage.getItem("battleai_token");
+    if (runnerTk) {
+      fetch("/api/pvp/notifications", {
+        headers: { "x-runner-token": runnerTk },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.results && data.results.length > 0) {
+            setPvpNotifications(data.results);
+            setShowPvpNotifications(true);
+          }
+          if (data.streetCred) setStreetCred(data.streetCred);
+        })
+        .catch(() => { /* silent */ });
+    }
   }, []);
 
   // Save gauntlet to localStorage
@@ -381,6 +414,8 @@ export default function Home() {
         draws: gauntlet.draws,
         ram: gauntlet.ramUnlocked,
         currentLevel: gauntlet.currentLevel,
+        defensePrompt: prompt,
+        defenseFaction: faction,
       }),
     })
       .then(r => r.json())
@@ -485,6 +520,9 @@ export default function Home() {
   const pendingBattleRef = useRef<Parameters<typeof startBattleRaw>[0] | undefined>(undefined);
   const bootPurposeRef = useRef<"onboarding" | "battle">("battle");
 
+  const pvpPendingRef = useRef<PvpTarget | null>(null);
+  const startPvpBattleRef = useRef<((target: PvpTarget) => void) | null>(null);
+
   const finishBoot = useCallback(() => {
     setBootPhase("done");
     setFlickerKey((k) => k + 1); // trigger CSS flicker-in on panels
@@ -494,7 +532,14 @@ export default function Home() {
       localStorage.setItem("battleai_first_boot", "1");
     }
     if (bootPurposeRef.current === "battle") {
-      startBattleRaw(pendingBattleRef.current);
+      // Check if this is a PVP battle
+      if (pvpPendingRef.current && startPvpBattleRef.current) {
+        const target = pvpPendingRef.current;
+        pvpPendingRef.current = null;
+        startPvpBattleRef.current(target);
+      } else {
+        startBattleRaw(pendingBattleRef.current);
+      }
     } else {
       // Onboarding boot — reveal UI with spotlight
       setSpotlightPrompt(true);
@@ -574,6 +619,110 @@ export default function Home() {
     });
   }, [currentLevel, startBattle]);
 
+  // PVP battle — streams from /api/pvp/attack, collects pvp_result at end
+  const startPvpBattle = useCallback(async (target: PvpTarget) => {
+    if (isFighting) return;
+    pvpTargetRef.current = target;
+    setPvpResult(null);
+    setIsFighting(true);
+    setGameState(null);
+    setUsage(null);
+    setLastDebug(null);
+    setLastScore(0);
+    abortRef.current = new AbortController();
+
+    // Increment free battle counter
+    const newCount = freeBattles + 1;
+    setFreeBattles(newCount);
+    localStorage.setItem("battleai_free_battles", String(newCount));
+
+    try {
+      const res = await fetch("/api/pvp/attack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: runnerToken,
+          targetId: target.id,
+          playerPrompt: prompt,
+          playerFaction: faction,
+        }),
+        signal: abortRef.current.signal,
+      });
+
+      if (!res.ok || !res.body) throw new Error("PVP battle failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed._type === "usage") {
+                setUsage(parsed as UsageData);
+              } else if (parsed._type === "pvp_result") {
+                setPvpResult(parsed as PvpBattleResult);
+                // Update local street cred
+                setStreetCred((c) => c + parsed.attackerCredChange);
+              } else {
+                if (parsed._debug) setLastDebug(parsed._debug as TickDebug);
+                setGameState(parsed as GameState);
+              }
+            } catch { /* skip */ }
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name !== "AbortError") {
+        console.error("PVP battle error:", e);
+      }
+    } finally {
+      setIsFighting(false);
+    }
+  }, [prompt, faction, isFighting, runnerToken, freeBattles]);
+
+  // PVP hack handler — triggers boot sequence then battle
+  const handlePvpHack = useCallback((target: PvpTarget) => {
+    pvpTargetRef.current = target;
+    // Use boot sequence, then start PVP battle
+    setSpotlightPrompt(false);
+    bootPurposeRef.current = "battle";
+    // Store a flag to identify this as PVP after boot
+    pendingBattleRef.current = undefined; // clear gauntlet override
+    setBootPhase("flicker");
+    // The actual PVP battle will start after boot finishes
+    // We'll use a ref to track that this is a PVP battle
+    pvpPendingRef.current = target;
+  }, []);
+
+  // Keep ref in sync with the latest startPvpBattle
+  useEffect(() => {
+    startPvpBattleRef.current = startPvpBattle;
+  }, [startPvpBattle]);
+
+  // PVP unlock trigger — after completing tutorial (level 5)
+  useEffect(() => {
+    if (gauntlet.currentLevel >= TUTORIAL_COUNT && !pvpUnlocked) {
+      const alreadyUnlocked = localStorage.getItem("battleai_pvp_unlocked");
+      if (!alreadyUnlocked) {
+        setPvpUnlocked(true);
+        setPvpJustUnlocked(true);
+        localStorage.setItem("battleai_pvp_unlocked", "1");
+        // Auto-dismiss the glow after 10 seconds
+        setTimeout(() => setPvpJustUnlocked(false), 10000);
+      }
+    }
+  }, [gauntlet.currentLevel, pvpUnlocked]);
+
   const resetGauntlet = useCallback(() => {
     setGauntlet(INITIAL_GAUNTLET);
     setGameState(null);
@@ -597,12 +746,22 @@ export default function Home() {
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
           <div className="hidden lg:flex gap-1">
-            <button onClick={() => setShowGauntlet(true)}
-              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${showGauntlet ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
+            <button onClick={() => { setGameMode("gauntlet"); setShowGauntlet(true); }}
+              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${gameMode === "gauntlet" ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               GAUNTLET
             </button>
-            <button onClick={() => setShowGauntlet(false)}
-              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${!showGauntlet ? "border-cyan text-cyan bg-cyan/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
+            {pvpUnlocked && (
+              <button onClick={() => { setGameMode("pvp"); setShowGauntlet(false); setPvpJustUnlocked(false); }}
+                className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
+                  gameMode === "pvp" ? "border-magenta text-magenta bg-magenta/10" :
+                  pvpJustUnlocked ? "border-magenta text-magenta bg-magenta/10 animate-pulse-glow" :
+                  "border-border text-text-dim hover:text-text-secondary"
+                }`}>
+                PVP
+              </button>
+            )}
+            <button onClick={() => { setGameMode("free"); setShowGauntlet(false); }}
+              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${gameMode === "free" ? "border-cyan text-cyan bg-cyan/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               FREE RUN
             </button>
           </div>
@@ -611,7 +770,7 @@ export default function Home() {
           </button>
         </div>
         <div className="flex items-center gap-2 lg:gap-4 font-mono text-xs">
-          {hydrated && showGauntlet && (
+          {hydrated && (gameMode === "gauntlet" || showGauntlet) && (
             <>
               <span className="hidden lg:inline text-text-dim">SCORE</span>
               <span className="text-amber tabular-nums font-bold">{gauntlet.totalScore.toLocaleString()}</span>
@@ -623,6 +782,17 @@ export default function Home() {
               <span className="hidden lg:inline text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
               <span className="hidden lg:inline text-text-dim">/</span>
               <span className="hidden lg:inline text-magenta tabular-nums">{gauntlet.losses}</span>
+              <span className={`tabular-nums text-xs ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
+                {FREE_BATTLE_LIMIT - freeBattles} FREE
+              </span>
+            </>
+          )}
+          {hydrated && gameMode === "pvp" && (
+            <>
+              <span className="hidden lg:inline text-text-dim">CRED</span>
+              <span className="text-amber tabular-nums font-bold">{streetCred}</span>
+              <span className="hidden lg:inline text-text-dim">RAM</span>
+              <span className="hidden lg:inline text-cyan tabular-nums">{gauntlet.ramUnlocked}</span>
               <span className={`tabular-nums text-xs ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
                 {FREE_BATTLE_LIMIT - freeBattles} FREE
               </span>
@@ -694,15 +864,15 @@ export default function Home() {
                 &gt; System Prompt_
                 <span className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Your combat prompt — tell your AI construct how to fight: when to attack, dodge, block, or retreat. The better your instructions, the smarter it fights. Limited by RAM.">?</span>
               </label>
-              <span className={`text-xs font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
-                {prompt.length}/{showGauntlet ? gauntlet.ramUnlocked : "∞"} RAM
+              <span className={`text-xs font-mono tabular-nums ${(showGauntlet || gameMode === "pvp") && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
+                {prompt.length}/{(showGauntlet || gameMode === "pvp") ? gauntlet.ramUnlocked : "∞"} RAM
               </span>
             </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               className={`w-full h-32 bg-bg-deep border rounded-sm p-2.5 text-sm font-mono resize-none focus:outline-none transition-all leading-relaxed ${
-                showGauntlet && prompt.length > gauntlet.ramUnlocked
+                (showGauntlet || gameMode === "pvp") && prompt.length > gauntlet.ramUnlocked
                   ? "border-magenta text-magenta/90 shadow-[0_0_10px_#ff2d6a22]"
                   : "border-border-bright text-cyan/90 focus:border-cyan focus:shadow-[0_0_10px_#00f0ff22]"
               }`}
@@ -748,8 +918,19 @@ export default function Home() {
             <ZaibatsuWar playerFaction={faction} />
           )}
 
-          {/* Gauntlet levels or Free config */}
-          {showGauntlet ? (
+          {/* Gauntlet levels, PVP targets, or Free config */}
+          {gameMode === "pvp" ? (
+            <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
+              {runnerToken && (
+                <PvpTargets
+                  runnerToken={runnerToken}
+                  onHack={handlePvpHack}
+                  disabled={isFighting}
+                  streetCred={streetCred}
+                />
+              )}
+            </div>
+          ) : showGauntlet ? (
             <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
               <label className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 {gauntlet.currentLevel < TUTORIAL_COUNT ? "Training Protocol" : "ICE Breaker Gauntlet"}
@@ -875,7 +1056,20 @@ export default function Home() {
 
           {/* Action buttons */}
           <div className={`p-3 space-y-2 shrink-0 transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
-            {showGauntlet ? (
+            {gameMode === "pvp" ? (
+              <div className="text-center">
+                <p className="text-text-dim text-xs font-mono mb-1">Select a target above, then hack their node.</p>
+                {isFighting && (
+                  <motion.button
+                    onClick={() => { abortRef.current?.abort(); setIsFighting(false); }}
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}
+                    className="w-full py-3 rounded-sm font-mono font-bold text-sm uppercase tracking-[0.4em] bg-magenta/20 border-2 border-magenta text-magenta"
+                    style={{ boxShadow: "var(--glow-magenta)" }}>
+                    ABORT
+                  </motion.button>
+                )}
+              </div>
+            ) : showGauntlet ? (
               <>
                 <motion.button
                   onClick={startGauntletBattle}
@@ -1183,6 +1377,158 @@ export default function Home() {
           onClose={() => setShowLeaderboard(false)}
           runnerName={runnerName}
           playerFaction={faction}
+        />
+      )}
+
+      {/* PVP Post-Battle Result overlay */}
+      <AnimatePresence>
+        {isOver && pvpResult && gameMode === "pvp" && (
+          <motion.div
+            key="pvp-result"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.3, type: "spring", damping: 25 }}
+              className="relative w-full max-w-md"
+            >
+              <div
+                className="bg-bg-deep border rounded-sm overflow-hidden crt-terminal p-5 font-mono"
+                style={{
+                  borderColor: pvpResult.attackerWon ? "rgba(57,255,20,0.4)" : "rgba(255,45,106,0.4)",
+                  boxShadow: pvpResult.attackerWon
+                    ? "0 0 40px rgba(57,255,20,0.15)"
+                    : "0 0 40px rgba(255,45,106,0.15)",
+                }}
+              >
+                {/* Scanlines */}
+                <div className="absolute inset-0 pointer-events-none z-10" style={{
+                  background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(57,255,20,0.015) 2px, rgba(57,255,20,0.015) 4px)",
+                }} />
+
+                <div className="relative z-20">
+                  <div className={`text-lg font-bold tracking-widest mb-3 ${pvpResult.attackerWon ? "text-neon-green glow-cyan" : "text-magenta glow-magenta"}`}>
+                    {pvpResult.attackerWon ? "NODE CRACKED" : "INTRUSION FAILED"}
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-text-dim">Target</span>
+                      <span className="text-amber font-bold">{pvpResult.defenderName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-dim">Duration</span>
+                      <span className="text-cyan tabular-nums">{pvpResult.ticks} cycles</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-dim">Street Cred</span>
+                      <motion.span
+                        initial={{ scale: 1 }}
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ delay: 0.5, duration: 0.5 }}
+                        className={`font-bold tabular-nums ${pvpResult.attackerCredChange > 0 ? "text-neon-green" : "text-magenta"}`}
+                      >
+                        {pvpResult.attackerCredChange > 0 ? "+" : ""}{pvpResult.attackerCredChange}
+                      </motion.span>
+                    </div>
+                    {pvpResult.ramTransferred > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-text-dim">RAM stolen</span>
+                        <span className="text-cyan font-bold tabular-nums">+{pvpResult.ramTransferred}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cracked prompt reveal on win */}
+                  {pvpResult.attackerWon && pvpResult.defenderPrompt && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      transition={{ delay: 1 }}
+                      className="mt-4 border-t border-neon-green/20 pt-3"
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-magenta text-xs uppercase tracking-wider animate-flicker">&gt; cracked_code</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(pvpResult.defenderPrompt)}
+                          className="text-xs text-text-dim hover:text-cyan transition-colors"
+                        >
+                          COPY
+                        </button>
+                      </div>
+                      <p className="text-neon-green/80 text-xs leading-relaxed">{pvpResult.defenderPrompt}</p>
+                    </motion.div>
+                  )}
+
+                  {/* Defeat message */}
+                  {!pvpResult.attackerWon && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.8 }}
+                      className="mt-4 border-t border-magenta/20 pt-3"
+                    >
+                      <p className="text-magenta text-xs animate-pulse-glow">
+                        &gt; They see YOUR prompt now. Rewrite it before they hack you back.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Action buttons */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1.5 }}
+                    className="mt-4 flex gap-2"
+                  >
+                    <button
+                      onClick={() => { setPvpResult(null); setGameState(null); }}
+                      className="flex-1 text-xs py-2 rounded-sm border border-cyan/30 text-cyan hover:bg-cyan/10 transition-all"
+                    >
+                      HACK ANOTHER
+                    </button>
+                    {!pvpResult.attackerWon && (
+                      <button
+                        onClick={() => {
+                          setPvpResult(null);
+                          setGameState(null);
+                          // Focus the prompt textarea
+                          const textarea = document.querySelector("textarea");
+                          if (textarea) textarea.focus();
+                        }}
+                        className="flex-1 text-xs py-2 rounded-sm border-2 border-magenta text-magenta bg-magenta/10 hover:bg-magenta/20 transition-all"
+                      >
+                        REWRITE PROMPT
+                      </button>
+                    )}
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PVP Notifications overlay */}
+      {showPvpNotifications && pvpNotifications.length > 0 && (
+        <PvpNotificationOverlay
+          notifications={pvpNotifications}
+          onDismiss={() => {
+            setShowPvpNotifications(false);
+            setPvpNotifications([]);
+          }}
+          onRewritePrompt={() => {
+            setShowPvpNotifications(false);
+            setPvpNotifications([]);
+            // Focus the prompt textarea
+            const textarea = document.querySelector("textarea");
+            if (textarea) textarea.focus();
+          }}
         />
       )}
     </div>
