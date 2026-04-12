@@ -11,6 +11,8 @@ interface PostBattleTerminalProps {
     blue: { actions: Record<string, number>; totalDmgDealt: number };
   };
   onNameSubmit: (name: string) => void;
+  rank?: { rank: number; total: number } | null;
+  onShowLeaderboard?: () => void;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -18,7 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   block: "SHIELD", dodge: "GHOST", parry: "BLACK ICE", none: "IDLE",
 };
 
-export function PostBattleTerminal({ gameState, analytics, onNameSubmit }: PostBattleTerminalProps) {
+export function PostBattleTerminal({ gameState, analytics, onNameSubmit, rank, onShowLeaderboard }: PostBattleTerminalProps) {
   const [phase, setPhase] = useState<"stats" | "motivate" | "name">("stats");
   const [visibleLines, setVisibleLines] = useState(0);
   const [nameValue, setNameValue] = useState("");
@@ -164,6 +166,14 @@ export function PostBattleTerminal({ gameState, analytics, onNameSubmit }: PostB
               {phase === "name" && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                   className="border-t border-neon-green/10 pt-3">
+                  {rank && (
+                    <div className="text-cyan text-[11px] mb-2">
+                      <span className="text-neon-green/40">SYSOP&gt; </span>
+                      You&apos;re ranked <span className="text-amber font-bold">#{rank.rank}</span> of {rank.total} runners.
+                      {rank.rank <= 3 && " Not bad, console cowboy."}
+                      {rank.rank > 3 && rank.rank <= 10 && " Top 10. Keep climbing."}
+                    </div>
+                  )}
                   <div className="text-amber text-[11px] mb-2">
                     <span className="text-neon-green/40">SYSOP&gt; </span>
                     What do they call you, runner?
@@ -183,9 +193,14 @@ export function PostBattleTerminal({ gameState, analytics, onNameSubmit }: PostB
                         style={{ left: `${(nameValue.length * 0.55) + 0.15}em`, top: '3px' }} />
                     </div>
                   </div>
-                  <a href="/lore" className="text-[8px] font-mono text-amber/30 hover:text-amber transition-colors mt-3 inline-block">
-                    [FULL TRANSMISSION — READ THE LORE]
-                  </a>
+                  <div className="flex gap-3 mt-3">
+                    <a href="/lore" className="text-[8px] font-mono text-amber/30 hover:text-amber transition-colors">
+                      [READ THE LORE]
+                    </a>
+                    <button onClick={onShowLeaderboard} className="text-[8px] font-mono text-cyan/30 hover:text-cyan transition-colors">
+                      [LEADERBOARD]
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </div>

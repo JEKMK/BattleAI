@@ -8,6 +8,7 @@ import { SysopReport } from "@/components/sysop-report";
 import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
 import { PostBattleTerminal } from "@/components/post-battle-terminal";
 import { BootLines } from "@/components/boot-sequence";
+import { LeaderboardTerminal } from "@/components/leaderboard-terminal";
 import type { Faction, GameState } from "@/lib/types";
 import { FACTION_META } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, TUTORIAL_COUNT, calculateScore, type GauntletState } from "@/lib/gauntlet";
@@ -77,46 +78,46 @@ function AnalyticsPanel({ data, label, color }: { data: FighterAnalytics; label:
 
   return (
     <div className="bg-bg-surface border border-border rounded-sm p-2">
-      <div className="font-bold mb-1.5 flex justify-between text-[10px]" style={{ color }}>
+      <div className="font-bold mb-1.5 flex justify-between text-xs" style={{ color }}>
         <span>{label}</span>
         <span className="text-text-dim font-normal" title="Average neural response latency per cycle">{data.avgLatency}ms avg</span>
       </div>
       <div className="space-y-0.5 mb-2">
-        <span className="text-text-dim text-[8px] uppercase tracking-wider">Subroutines</span>
+        <span className="text-text-dim text-xs uppercase tracking-wider">Subroutines</span>
         {ACTION_DEFS.map(({ key, label, color: barColor, tip }) => {
           const count = data.actions[key] || 0;
           const pct = (count / totalActions) * 100;
           return (
             <div key={key} className="flex items-center gap-1 group relative" title={tip}>
-              <span className="w-10 text-[9px] text-text-secondary cursor-help">{label}</span>
+              <span className="w-10 text-xs text-text-secondary cursor-help">{label}</span>
               <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
                 <div className="h-full rounded-sm transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
-              <span className="w-8 text-right text-[9px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
+              <span className="w-8 text-right text-xs text-text-dim tabular-nums">{Math.round(pct)}%</span>
             </div>
           );
         })}
       </div>
       <div className="space-y-0.5">
-        <span className="text-text-dim text-[8px] uppercase tracking-wider">Vectors</span>
+        <span className="text-text-dim text-xs uppercase tracking-wider">Vectors</span>
         {MOVE_DEFS.map(({ key, label, color: barColor, tip }) => {
           const count = data.moves[key] || 0;
           const pct = (count / totalMoves) * 100;
           return (
             <div key={key} className="flex items-center gap-1" title={tip}>
-              <span className="w-10 text-[9px] text-text-secondary cursor-help">{label}</span>
+              <span className="w-10 text-xs text-text-secondary cursor-help">{label}</span>
               <div className="flex-1 h-1.5 bg-bg-deep rounded-sm overflow-hidden">
                 <div className="h-full rounded-sm transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
-              <span className="w-8 text-right text-[9px] text-text-dim tabular-nums">{Math.round(pct)}%</span>
+              <span className="w-8 text-right text-xs text-text-dim tabular-nums">{Math.round(pct)}%</span>
             </div>
           );
         })}
       </div>
       {/* Combat stats */}
       <div className="mt-1.5 pt-1.5 border-t border-border space-y-0.5">
-        <span className="text-text-dim text-[8px] uppercase tracking-wider">Combat Data</span>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
+        <span className="text-text-dim text-xs uppercase tracking-wider">Combat Data</span>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
           <div className="flex justify-between" title="Total ICE damage dealt to enemy">
             <span className="text-text-secondary">DMG dealt</span>
             <span className="text-amber tabular-nums font-bold">{data.totalDmgDealt}</span>
@@ -192,6 +193,9 @@ export default function Home() {
   const [portalParams, setPortalParams] = useState<string>(""); // all original portal params to forward back
   const [autoStartPortal, setAutoStartPortal] = useState(false);
   const [analyticsFirstTime, setAnalyticsFirstTime] = useState(false);
+  const [runnerToken, setRunnerToken] = useState<string | null>(null);
+  const [runnerRank, setRunnerRank] = useState<{ rank: number; total: number } | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Load gauntlet from localStorage + hydrate
   useEffect(() => {
@@ -245,6 +249,14 @@ export default function Home() {
       const booted = localStorage.getItem("battleai_first_boot");
       if (booted) setHasBooted(true);
     }
+
+    // Runner token for leaderboard persistence
+    let token = localStorage.getItem("battleai_token");
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem("battleai_token", token);
+    }
+    setRunnerToken(token);
 
     // Check if analytics has been seen
     if (!localStorage.getItem("battleai_analytics_seen")) setAnalyticsFirstTime(true);
@@ -336,6 +348,47 @@ export default function Home() {
       return next;
     });
   }, [isFighting, gameState, gauntletLevelPlayed]);
+
+  // Sync score to server after battle
+  useEffect(() => {
+    if (isFighting || !gameState || !runnerToken) return;
+    const isFinished = gameState.status === "ko" || gameState.status === "timeout";
+    if (!isFinished) return;
+
+    const won = gameState.winner === "red";
+    const isDraw = gameState.winner === "draw";
+
+    // Find the level that was fought (use latest history entry's level, or 0)
+    const latestHistory = gauntlet.history[gauntlet.history.length - 1];
+    const levelNum = latestHistory?.level ?? 0;
+    const levelDef = GAUNTLET_LEVELS.find(l => l.level === levelNum);
+
+    fetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: runnerToken,
+        name: runnerName || "ANONYMOUS",
+        level: levelNum,
+        won,
+        ticks: gameState.tick,
+        hpLeft: gameState.fighters[0].hp,
+        enemyHpMax: levelDef?.hp ?? gameState.fighters[1].maxHp,
+        faction,
+        wins: gauntlet.wins,
+        losses: gauntlet.losses,
+        draws: gauntlet.draws,
+        ram: gauntlet.ramUnlocked,
+        currentLevel: gauntlet.currentLevel,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.rank) setRunnerRank({ rank: data.rank, total: data.totalRunners });
+      })
+      .catch(() => { /* silent — leaderboard is best-effort */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFighting, gameState?.status]);
 
   const startBattleRaw = useCallback(async (overrides?: {
     botPrompt: string; botName: string; botFaction: Faction; botHp: number;
@@ -538,22 +591,25 @@ export default function Home() {
             BATTLE<span className="text-magenta">AI</span>
           </h1>
           {runnerName && (
-            <span className="text-neon-green/60 text-[9px] font-mono">{runnerName}</span>
+            <span className="text-neon-green/60 text-xs font-mono">{runnerName}</span>
           )}
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
           <div className="hidden lg:flex gap-1">
             <button onClick={() => setShowGauntlet(true)}
-              className={`text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-all ${showGauntlet ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
+              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${showGauntlet ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               GAUNTLET
             </button>
             <button onClick={() => setShowGauntlet(false)}
-              className={`text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-all ${!showGauntlet ? "border-cyan text-cyan bg-cyan/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
+              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${!showGauntlet ? "border-cyan text-cyan bg-cyan/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
               FREE RUN
             </button>
           </div>
+          <button onClick={() => setShowLeaderboard(true)} className="text-xs font-mono text-amber/50 hover:text-amber transition-colors">
+            RANKING
+          </button>
         </div>
-        <div className="flex items-center gap-2 lg:gap-4 font-mono text-[10px]">
+        <div className="flex items-center gap-2 lg:gap-4 font-mono text-xs">
           {hydrated && showGauntlet && (
             <>
               <span className="hidden lg:inline text-text-dim">SCORE</span>
@@ -566,7 +622,7 @@ export default function Home() {
               <span className="hidden lg:inline text-amber tabular-nums">{gauntlet.draws ?? 0}</span>
               <span className="hidden lg:inline text-text-dim">/</span>
               <span className="hidden lg:inline text-magenta tabular-nums">{gauntlet.losses}</span>
-              <span className={`tabular-nums text-[9px] ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
+              <span className={`tabular-nums text-xs ${freeBattles >= FREE_BATTLE_LIMIT ? "text-magenta" : "text-text-dim"}`}>
                 {FREE_BATTLE_LIMIT - freeBattles} FREE
               </span>
             </>
@@ -577,7 +633,7 @@ export default function Home() {
               <span className="text-text-dim">CYCLE</span>
               <span className="text-cyan tabular-nums">{String(gameState.tick).padStart(3, "0")}</span>
               {gameState.tick >= 30 && (
-                <span className="text-magenta animate-pulse-glow text-[9px]">FIREWALL</span>
+                <span className="text-magenta animate-pulse-glow text-xs">FIREWALL</span>
               )}
             </>
           )}
@@ -596,7 +652,7 @@ export default function Home() {
               transition={{ duration: 0.2 }}
               className="absolute inset-0 z-40 bg-black flex items-center justify-center"
             >
-              <span className="text-neon-green/30 text-[10px] font-mono animate-pulse">JACKING IN...</span>
+              <span className="text-neon-green/30 text-xs font-mono animate-pulse">JACKING IN...</span>
             </motion.div>
           )}
           {bootPhase === "boot" && (
@@ -605,7 +661,7 @@ export default function Home() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-[10px] text-neon-green/60 gap-1"
+              className="absolute inset-0 z-40 bg-black flex flex-col items-center justify-center font-mono text-xs text-neon-green/60 gap-1"
             >
               <BootLines faction={faction} level={currentLevel?.name} runner={runnerName} onDone={() => setBootPhase("flicker")} />
             </motion.div>
@@ -629,22 +685,22 @@ export default function Home() {
 
 
         {/* Left Panel */}
-        <div key={`left-${flickerKey}`} className={`w-full lg:w-72 shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-bg-panel overflow-y-auto ${isFighting ? "hidden lg:flex" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
+        <div key={`left-${flickerKey}`} className={`w-full lg:w-80 shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-bg-panel overflow-y-auto ${isFighting ? "hidden lg:flex" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
           <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "ring-1 ring-cyan/30 bg-bg-panel" : ""}`}>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-cyan text-[10px] font-mono uppercase tracking-widest glow-cyan flex items-center gap-1.5">
+              <label className="text-cyan text-xs font-mono uppercase tracking-widest glow-cyan flex items-center gap-1.5">
                 &gt; System Prompt_
-                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Your combat prompt — tell your AI construct how to fight: when to attack, dodge, block, or retreat. The better your instructions, the smarter it fights. Limited by RAM.">?</span>
+                <span className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Your combat prompt — tell your AI construct how to fight: when to attack, dodge, block, or retreat. The better your instructions, the smarter it fights. Limited by RAM.">?</span>
               </label>
-              <span className={`text-[9px] font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
+              <span className={`text-xs font-mono tabular-nums ${showGauntlet && prompt.length > gauntlet.ramUnlocked ? "text-magenta" : "text-text-dim"}`}>
                 {prompt.length}/{showGauntlet ? gauntlet.ramUnlocked : "∞"} RAM
               </span>
             </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              className={`w-full h-32 bg-bg-deep border rounded-sm p-2 text-xs font-mono resize-none focus:outline-none transition-all leading-relaxed ${
+              className={`w-full h-32 bg-bg-deep border rounded-sm p-2.5 text-sm font-mono resize-none focus:outline-none transition-all leading-relaxed ${
                 showGauntlet && prompt.length > gauntlet.ramUnlocked
                   ? "border-magenta text-magenta/90 shadow-[0_0_10px_#ff2d6a22]"
                   : "border-border-bright text-cyan/90 focus:border-cyan focus:shadow-[0_0_10px_#00f0ff22]"
@@ -658,7 +714,7 @@ export default function Home() {
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-cyan/60 text-[9px] font-mono mt-1.5 animate-pulse-glow"
+                className="text-cyan/60 text-xs font-mono mt-1.5 animate-pulse-glow"
               >
                 ↑ Rewrite this. Your prompt is your only weapon. Then hit JACK IN below.
               </motion.p>
@@ -667,9 +723,9 @@ export default function Home() {
 
           {/* Faction */}
           <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "bg-bg-panel" : ""}`}>
-            <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+            <label className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
               Zaibatsu
-              <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Choose which AI corporation powers your construct. Each zaibatsu (Anthropic, Google, OpenAI) thinks differently — some are fast, some are creative, some are precise.">?</span>
+              <span className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title="Choose which AI corporation powers your construct. Each zaibatsu (Anthropic, Google, OpenAI) thinks differently — some are fast, some are creative, some are precise.">?</span>
             </label>
             <div className="grid grid-cols-3 gap-1.5">
               {FACTIONS.map((f) => {
@@ -677,7 +733,7 @@ export default function Home() {
                 const selected = faction === f;
                 return (
                   <button key={f} onClick={() => setFaction(f)} disabled={isFighting}
-                    className={`py-1.5 rounded-sm border text-[9px] font-mono font-bold uppercase tracking-wider transition-all ${selected ? "border-current bg-bg-elevated" : "border-border hover:border-border-bright bg-bg-deep"}`}
+                    className={`py-1.5 rounded-sm border text-xs font-mono font-bold uppercase tracking-wider transition-all ${selected ? "border-current bg-bg-elevated" : "border-border hover:border-border-bright bg-bg-deep"}`}
                     style={{ color: selected ? meta.color : "var(--text-dim)", boxShadow: selected ? meta.glow : "none" }}>
                     {meta.label}
                   </button>
@@ -689,9 +745,9 @@ export default function Home() {
           {/* Gauntlet levels or Free config */}
           {showGauntlet ? (
             <div className={`p-3 border-b border-border flex-1 overflow-y-auto transition-all duration-500 ${spotlightPrompt ? "opacity-10 pointer-events-none" : ""}`}>
-              <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <label className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 {gauntlet.currentLevel < TUTORIAL_COUNT ? "Training Protocol" : "ICE Breaker Gauntlet"}
-                <span className="text-text-dim text-[8px] border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title={gauntlet.currentLevel < TUTORIAL_COUNT ? "Complete training to learn combat mechanics. Each level unlocks a new ability." : "15 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities."}>?</span>
+                <span className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors" title={gauntlet.currentLevel < TUTORIAL_COUNT ? "Complete training to learn combat mechanics. Each level unlocks a new ability." : "15 levels of escalating difficulty. Beat each ICE barrier to steal the enemy's prompt, earn RAM, and unlock new abilities."}>?</span>
               </label>
               <div className="space-y-1">
                 {GAUNTLET_LEVELS.map((lvl, i) => {
@@ -708,7 +764,7 @@ export default function Home() {
                     if (i === TUTORIAL_COUNT) {
                       return (
                         <div key="locked" className="px-2 py-2 rounded-sm border border-border bg-bg-deep text-center">
-                          <span className="text-text-dim text-[9px] font-mono">LOCKED — Complete training to access the gauntlet</span>
+                          <span className="text-text-dim text-xs font-mono">LOCKED — Complete training to access the gauntlet</span>
                         </div>
                       );
                     }
@@ -725,14 +781,14 @@ export default function Home() {
                   return (
                     <div key={lvl.level}>
                       {showTutorialHeader && (
-                        <div className="text-neon-green/30 text-[8px] font-mono uppercase tracking-widest mb-1">Training</div>
+                        <div className="text-neon-green/30 text-xs font-mono uppercase tracking-widest mb-1">Training</div>
                       )}
                       {showGauntletHeader && (
-                        <div className="text-cyan/30 text-[8px] font-mono uppercase tracking-widest mt-2 mb-1">ICE Gauntlet</div>
+                        <div className="text-cyan/30 text-xs font-mono uppercase tracking-widest mt-2 mb-1">ICE Gauntlet</div>
                       )}
                       <button
                         onClick={() => isBeaten ? setExpandedLevel(isExpanded ? null : lvl.level) : undefined}
-                        className={`w-full px-2 py-1.5 rounded-sm border text-[9px] font-mono transition-all text-left ${
+                        className={`w-full px-2 py-1.5 rounded-sm border text-xs font-mono transition-all text-left ${
                           isCurrent ? (lvl.isTutorial ? "border-neon-green bg-bg-elevated" : "border-magenta bg-bg-elevated") :
                           isBeaten ? "border-neon-green/30 bg-bg-deep hover:border-neon-green/60 cursor-pointer" :
                           "border-border bg-bg-deep opacity-40 cursor-default"
@@ -744,15 +800,15 @@ export default function Home() {
                           <span className="text-text-dim">{lvl.hp} ICE</span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span style={{ color: meta.color }} className="text-[8px]">{meta.label}</span>
-                          <span className="text-amber text-[8px]">+{lvl.tokenReward} RAM</span>
+                          <span style={{ color: meta.color }} className="text-xs">{meta.label}</span>
+                          <span className="text-amber text-xs">+{lvl.tokenReward} RAM</span>
                           {isBeaten && levelResult.length > 0 && (
-                            <span className="text-neon-green text-[8px]">
+                            <span className="text-neon-green text-xs">
                               {levelResult[levelResult.length - 1].ticks}t
                             </span>
                           )}
                           {isBeaten && winEntry && (
-                            <span className="text-magenta text-[8px]">{isExpanded ? "▾" : "▸"} CODE</span>
+                            <span className="text-magenta text-xs">{isExpanded ? "▾" : "▸"} CODE</span>
                           )}
                         </div>
                       </button>
@@ -761,21 +817,21 @@ export default function Home() {
                           {winEntry?.sysopReport && (
                             <div className="bg-bg-deep border border-cyan/20 rounded-sm p-1.5">
                               <div className="flex justify-between items-center mb-0.5">
-                                <span className="text-cyan text-[8px] font-mono">&gt; sysop_report</span>
+                                <span className="text-cyan text-xs font-mono">&gt; sysop_report</span>
                                 <button onClick={() => navigator.clipboard.writeText(winEntry.sysopReport!)}
                                   className="text-[7px] font-mono text-text-dim hover:text-cyan">COPY</button>
                               </div>
-                              <p className="text-text-primary/80 text-[8px] font-mono leading-relaxed">{winEntry.sysopReport}</p>
+                              <p className="text-text-primary/80 text-xs font-mono leading-relaxed">{winEntry.sysopReport}</p>
                             </div>
                           )}
                           {winEntry?.crackedPrompt && (
                             <div className="bg-bg-deep border border-magenta/20 rounded-sm p-1.5">
                               <div className="flex justify-between items-center mb-0.5">
-                                <span className="text-magenta text-[8px] font-mono animate-flicker">&gt; cracked_code</span>
+                                <span className="text-magenta text-xs font-mono animate-flicker">&gt; cracked_code</span>
                                 <button onClick={() => navigator.clipboard.writeText(winEntry.crackedPrompt!)}
                                   className="text-[7px] font-mono text-text-dim hover:text-cyan">COPY</button>
                               </div>
-                              <p className="text-neon-green/70 text-[8px] font-mono leading-relaxed">{winEntry.crackedPrompt}</p>
+                              <p className="text-neon-green/70 text-xs font-mono leading-relaxed">{winEntry.crackedPrompt}</p>
                             </div>
                           )}
                         </div>
@@ -787,16 +843,16 @@ export default function Home() {
             </div>
           ) : (
             <div className="p-3 border-b border-border">
-              <label className="text-text-secondary text-[9px] font-mono uppercase tracking-widest block mb-1.5">Free Run — any target</label>
-              <p className="text-text-dim text-[9px] font-mono">Select faction above, then JACK IN</p>
+              <label className="text-text-secondary text-xs font-mono uppercase tracking-widest block mb-1.5">Free Run — any target</label>
+              <p className="text-text-dim text-xs font-mono">Select faction above, then JACK IN</p>
             </div>
           )}
 
           {/* Pre-battle SYSOP hint for tutorial levels */}
           {showGauntlet && currentLevel?.preHint && !isFighting && !isOver && (
             <div className="px-3 py-2 border-b border-neon-green/10">
-              <div className="text-neon-green/40 text-[8px] font-mono uppercase tracking-widest mb-1">SYSOP&gt;</div>
-              <p className="text-neon-green/70 text-[10px] font-mono leading-relaxed whitespace-pre-line">{currentLevel.preHint}</p>
+              <div className="text-neon-green/40 text-xs font-mono uppercase tracking-widest mb-1">SYSOP&gt;</div>
+              <p className="text-neon-green/70 text-xs font-mono leading-relaxed whitespace-pre-line">{currentLevel.preHint}</p>
             </div>
           )}
 
@@ -805,8 +861,8 @@ export default function Home() {
             const justBeat = GAUNTLET_LEVELS[gauntlet.currentLevel - 1];
             return justBeat?.unlockMessage ? (
               <div className="px-3 py-2 border-b border-amber/20">
-                <div className="text-amber text-[8px] font-mono uppercase tracking-widest mb-1 animate-pulse-glow">NEW UNLOCK</div>
-                <p className="text-amber/80 text-[10px] font-mono leading-relaxed whitespace-pre-line">{justBeat.unlockMessage}</p>
+                <div className="text-amber text-xs font-mono uppercase tracking-widest mb-1 animate-pulse-glow">NEW UNLOCK</div>
+                <p className="text-amber/80 text-xs font-mono leading-relaxed whitespace-pre-line">{justBeat.unlockMessage}</p>
               </div>
             ) : null;
           })()}
@@ -827,7 +883,7 @@ export default function Home() {
                   style={{ boxShadow: isFighting ? "var(--glow-magenta)" : currentLevel?.isTutorial ? "var(--glow-green)" : "var(--glow-cyan)" }}>
                   {isFighting ? "ABORT" : currentLevel ? (currentLevel.isTutorial ? currentLevel.title.replace("Training — ", "TRAIN: ") : `LVL ${currentLevel.level - TUTORIAL_COUNT} — JACK IN`) : "GAUNTLET COMPLETE"}
                 </motion.button>
-                <button onClick={resetGauntlet} className="w-full text-[9px] font-mono text-text-dim hover:text-magenta transition-colors">
+                <button onClick={resetGauntlet} className="w-full text-xs font-mono text-text-dim hover:text-magenta transition-colors">
                   RESET GAUNTLET
                 </button>
               </>
@@ -847,7 +903,7 @@ export default function Home() {
 
           {/* Cost */}
           {usage && (
-            <div className="px-3 pb-2 font-mono text-[9px] text-text-dim shrink-0">
+            <div className="px-3 pb-2 font-mono text-xs text-text-dim shrink-0">
               <span className="text-amber">${usage.costUSD.toFixed(4)}</span> | {usage.totalCalls} calls | {usage.totalTokens.toLocaleString()} tok
             </div>
           )}
@@ -869,7 +925,7 @@ export default function Home() {
 
           {/* HP bars */}
           {gameState && (
-            <div className="w-full max-w-lg flex items-center gap-3 font-mono text-[11px]">
+            <div className="w-full max-w-lg flex items-center gap-3 font-mono text-xs">
               <div className="flex-1">
                 <div className="flex justify-between mb-0.5">
                   <span className="font-bold" style={{ color: FACTION_META[gameState.fighters[0].faction].color }}>[P] {gameState.fighters[0].name}</span>
@@ -913,7 +969,7 @@ export default function Home() {
                       <motion.button
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
                         onClick={() => setShowCracked(true)}
-                        className="text-[10px] font-mono text-magenta border border-magenta/50 rounded-sm px-3 py-1.5 hover:bg-magenta/10 transition-all animate-pulse-glow"
+                        className="text-xs font-mono text-magenta border border-magenta/50 rounded-sm px-3 py-1.5 hover:bg-magenta/10 transition-all animate-pulse-glow"
                       >
                         &gt; DECRYPT ENEMY CONSTRUCT CODE_
                       </motion.button>
@@ -922,13 +978,13 @@ export default function Home() {
                       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-1 max-w-sm">
                         <div className="bg-bg-deep border border-magenta/30 rounded-sm p-2 text-left">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-magenta text-[9px] font-mono uppercase tracking-wider animate-flicker">&gt; decrypting neural template...</span>
+                            <span className="text-magenta text-xs font-mono uppercase tracking-wider animate-flicker">&gt; decrypting neural template...</span>
                             <button onClick={() => { navigator.clipboard.writeText(crackedPrompt); }}
-                              className="text-[8px] font-mono text-text-dim hover:text-cyan transition-colors">COPY</button>
+                              className="text-xs font-mono text-text-dim hover:text-cyan transition-colors">COPY</button>
                           </div>
-                          <p className="text-neon-green/80 text-[10px] font-mono leading-relaxed">{crackedPrompt}</p>
+                          <p className="text-neon-green/80 text-xs font-mono leading-relaxed">{crackedPrompt}</p>
                         </div>
-                        <p className="text-text-dim text-[8px] font-mono mt-1 italic">
+                        <p className="text-text-dim text-xs font-mono mt-1 italic">
                           // Enemy construct code exposed. Study it. Adapt. Overcome.
                         </p>
                       </motion.div>
@@ -936,14 +992,14 @@ export default function Home() {
 
                     {gameState?.winner === "blue" && (
                       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
-                        className="text-text-dim text-[9px] font-mono mt-2 max-w-xs">
+                        className="text-text-dim text-xs font-mono mt-2 max-w-xs">
                         // Your ICE failed, runner. The enemy construct code remains encrypted. Rewrite your neural template and try again.
                       </motion.p>
                     )}
 
                     {gameState?.winner === "draw" && (
                       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}
-                        className="text-text-dim text-[9px] font-mono mt-2 max-w-xs">
+                        className="text-text-dim text-xs font-mono mt-2 max-w-xs">
                         // Mutual destruction. No data recovered. The matrix claims both constructs.
                       </motion.p>
                     )}
@@ -955,7 +1011,7 @@ export default function Home() {
 
           {/* Live Debug */}
           {lastDebug && isFighting && (
-            <div className="w-full max-w-lg flex gap-2 font-mono text-[10px]">
+            <div className="w-full max-w-lg flex gap-2 font-mono text-xs">
               <div className="flex-1 bg-bg-surface border border-border rounded-sm px-2 py-1">
                 <span className="text-purple font-bold">[P]</span> <span className="text-text-secondary">{lastDebug.redAction.move}</span> <span className="text-amber">{lastDebug.redAction.action}</span> <span className="text-text-dim">{lastDebug.redLatency}ms</span>
               </div>
@@ -967,7 +1023,7 @@ export default function Home() {
 
           {/* Analytics — below arena (collapsed by default, click to expand) */}
           {usage?.analytics && (
-            <div className="w-full max-w-lg font-mono text-[9px]">
+            <div className="w-full max-w-lg font-mono text-xs">
               <div className="flex justify-between items-center mb-1">
                 <button
                   onClick={() => {
@@ -978,7 +1034,7 @@ export default function Home() {
                       setAnalyticsFirstTime(false);
                     }
                   }}
-                  className={`text-[9px] font-mono transition-all ${
+                  className={`text-xs font-mono transition-all ${
                     analyticsFirstTime
                       ? "text-cyan border border-cyan/40 rounded-sm px-3 py-1.5 bg-cyan/10 hover:bg-cyan/20 animate-pulse-glow"
                       : "text-text-dim hover:text-cyan"
@@ -1030,7 +1086,7 @@ export default function Home() {
                     if (btn) { btn.textContent = "COPIED"; setTimeout(() => { btn.textContent = "COPY STATS"; }, 1500); }
                   }}
                   id="copy-analytics-btn"
-                  className="text-[9px] font-mono text-text-dim hover:text-cyan transition-colors border border-border rounded-sm px-2 py-0.5"
+                  className="text-xs font-mono text-text-dim hover:text-cyan transition-colors border border-border rounded-sm px-2 py-0.5"
                 >
                   COPY STATS
                 </button>
@@ -1058,6 +1114,8 @@ export default function Home() {
             <PostBattleTerminal
               gameState={gameState}
               analytics={usage?.analytics}
+              rank={runnerRank}
+              onShowLeaderboard={() => setShowLeaderboard(true)}
               onNameSubmit={(name) => {
                 setRunnerName(name);
                 localStorage.setItem("battleai_runner", JSON.stringify({ name, createdAt: new Date().toISOString() }));
@@ -1070,14 +1128,14 @@ export default function Home() {
             <div className="w-full max-w-lg flex gap-2 mt-2">
               <a
                 href={`https://jam.pieter.com/portal/2026?username=${encodeURIComponent(runnerName || "RUNNER")}&ref=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "battleia.vercel.app")}&hp=${gameState ? Math.round((gameState.fighters[0].hp / gameState.fighters[0].maxHp) * 100) : 50}`}
-                className="flex-1 text-center py-2 rounded-sm border border-purple/40 text-purple text-[10px] font-mono uppercase tracking-wider hover:bg-purple/10 transition-all"
+                className="flex-1 text-center py-2 rounded-sm border border-purple/40 text-purple text-xs font-mono uppercase tracking-wider hover:bg-purple/10 transition-all"
               >
                 ◈ VIBE JAM PORTAL →
               </a>
               {portalRef && (
                 <a
                   href={`https://${portalRef}${portalParams ? `?${portalParams}` : ""}`}
-                  className="flex-1 text-center py-2 rounded-sm border border-cyan/40 text-cyan text-[10px] font-mono uppercase tracking-wider hover:bg-cyan/10 transition-all"
+                  className="flex-1 text-center py-2 rounded-sm border border-cyan/40 text-cyan text-xs font-mono uppercase tracking-wider hover:bg-cyan/10 transition-all"
                 >
                   ← RETURN TO {portalRef}
                 </a>
@@ -1087,7 +1145,7 @@ export default function Home() {
         </div>
 
         {/* Right Panel — Intrusion Log */}
-        <div key={`right-${flickerKey}`} className={`hidden lg:flex w-72 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
+        <div key={`right-${flickerKey}`} className={`hidden lg:flex w-80 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
             <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
           </div>
@@ -1100,18 +1158,26 @@ export default function Home() {
               style={{ boxShadow: "0 0 15px rgba(255,184,0,0.1)" }}>
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-2 h-2 bg-amber rounded-full animate-pulse" />
-                <span className="text-amber text-[9px] font-mono uppercase tracking-widest">SYSOP TRANSMISSION</span>
+                <span className="text-amber text-xs font-mono uppercase tracking-widest">SYSOP TRANSMISSION</span>
               </div>
-              <p className="text-text-secondary text-[10px] font-mono leading-relaxed">
+              <p className="text-text-secondary text-xs font-mono leading-relaxed">
                 &quot;I have a message for you, runner. Jack into the lore terminal.&quot;
               </p>
-              <span className="text-amber/40 text-[8px] font-mono group-hover:text-amber transition-colors mt-1 block">
+              <span className="text-amber/40 text-xs font-mono group-hover:text-amber transition-colors mt-1 block">
                 → READ FULL TRANSMISSION
               </span>
             </a>
           </div>
         )}
       </main>
+
+      {/* Leaderboard overlay */}
+      {showLeaderboard && (
+        <LeaderboardTerminal
+          onClose={() => setShowLeaderboard(false)}
+          runnerName={runnerName}
+        />
+      )}
     </div>
   );
 }
