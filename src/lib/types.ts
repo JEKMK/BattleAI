@@ -1,5 +1,22 @@
 export type Faction = "anthropic" | "google" | "openai";
 
+export type RunnerShape = "diamond" | "triangle" | "hexagon" | "cross" | "star" | "circle" | "square" | "pentagon";
+
+export const RUNNER_SHAPES: RunnerShape[] = ["diamond", "triangle", "hexagon", "cross", "star", "circle", "square", "pentagon"];
+
+export const RUNNER_COLORS = [
+  "#00f0ff", // cyan
+  "#39ff14", // neon green
+  "#ff2d6a", // magenta
+  "#b44aff", // purple
+  "#ffb800", // amber
+  "#ff6b00", // orange
+  "#00ff88", // mint
+  "#ff00ff", // fuchsia
+] as const;
+
+export type RunnerColor = (typeof RUNNER_COLORS)[number];
+
 export type Direction = "up" | "down" | "left" | "right" | "none";
 
 export type ActionType =
