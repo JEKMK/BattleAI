@@ -907,6 +907,21 @@ export default function Home() {
                 ↑ Rewrite this. Your prompt is your only weapon. Then hit JACK IN below.
               </motion.p>
             )}
+            {/* Construct customizer — collapsible */}
+            <details className="mt-2 group">
+              <summary className="text-text-dim text-xs font-mono cursor-pointer hover:text-cyan transition-colors select-none flex items-center gap-1">
+                <span className="text-xs transition-transform group-open:rotate-90">▸</span>
+                CONSTRUCT APPEARANCE
+              </summary>
+              <div className="mt-2">
+                <RunnerCustomizer
+                  shape={runnerShape}
+                  color={runnerColor}
+                  onShapeChange={(s) => { setRunnerShape(s); localStorage.setItem("battleai_shape", s); }}
+                  onColorChange={(c) => { setRunnerColor(c); localStorage.setItem("battleai_color", c); }}
+                />
+              </div>
+            </details>
           </div>
 
           {/* Faction */}
@@ -929,14 +944,6 @@ export default function Home() {
               })}
             </div>
           </div>
-
-          {/* Runner construct customizer */}
-          <RunnerCustomizer
-            shape={runnerShape}
-            color={runnerColor}
-            onShapeChange={(s) => { setRunnerShape(s); localStorage.setItem("battleai_shape", s); }}
-            onColorChange={(c) => { setRunnerColor(c); localStorage.setItem("battleai_color", c); }}
-          />
 
           {/* Zaibatsu War — global faction ranking */}
           {showGauntlet && hydrated && (

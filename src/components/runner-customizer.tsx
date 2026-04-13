@@ -109,13 +109,7 @@ function ShapePreview({ shape, color, size = 20 }: { shape: RunnerShape; color: 
 
 export function RunnerCustomizer({ shape, color, onShapeChange, onColorChange }: RunnerCustomizerProps) {
   return (
-    <div className="p-3 border-b border-border">
-      <label className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-2 flex items-center gap-1.5">
-        Construct
-        <span className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3 h-3 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors"
-          title="Choose your construct's shape and color. Visible in the arena and to other runners in PVP.">?</span>
-      </label>
-
+    <div>
       {/* Shape selector */}
       <div className="flex gap-1 mb-2">
         {RUNNER_SHAPES.map((s) => (
