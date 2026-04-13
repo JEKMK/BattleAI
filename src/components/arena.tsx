@@ -1,13 +1,20 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import type { GameState, LogEntry } from "@/lib/types";
+import type { GameState, LogEntry, RunnerShape } from "@/lib/types";
 
 const CELL_SIZE = 44;
 const PADDING = 3;
 
+interface FighterCosmetic {
+  shape: RunnerShape;
+  color: string;
+}
+
 interface ArenaProps {
   state: GameState | null;
+  redCosmetic?: FighterCosmetic;
+  blueCosmetic?: FighterCosmetic;
 }
 
 const FACTION_COLORS: Record<string, string> = {
@@ -15,6 +22,76 @@ const FACTION_COLORS: Record<string, string> = {
   google: "#00f0ff",
   openai: "#39ff14",
 };
+
+/** Draw a geometric shape centered at (cx, cy) with given radius */
+function drawShape(ctx: CanvasRenderingContext2D, shape: RunnerShape, cx: number, cy: number, r: number) {
+  ctx.beginPath();
+  switch (shape) {
+    case "diamond":
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      break;
+    case "triangle":
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r * 0.87, cy + r * 0.5);
+      ctx.lineTo(cx - r * 0.87, cy + r * 0.5);
+      ctx.closePath();
+      break;
+    case "hexagon":
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        const method = i === 0 ? "moveTo" : "lineTo";
+        ctx[method](cx + r * Math.cos(a), cy + r * Math.sin(a));
+      }
+      ctx.closePath();
+      break;
+    case "pentagon":
+      for (let i = 0; i < 5; i++) {
+        const a = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const method = i === 0 ? "moveTo" : "lineTo";
+        ctx[method](cx + r * Math.cos(a), cy + r * Math.sin(a));
+      }
+      ctx.closePath();
+      break;
+    case "star": {
+      const inner = r * 0.4;
+      for (let i = 0; i < 10; i++) {
+        const a = (Math.PI / 5) * i - Math.PI / 2;
+        const rad = i % 2 === 0 ? r : inner;
+        const method = i === 0 ? "moveTo" : "lineTo";
+        ctx[method](cx + rad * Math.cos(a), cy + rad * Math.sin(a));
+      }
+      ctx.closePath();
+      break;
+    }
+    case "cross":
+      ctx.moveTo(cx - r * 0.3, cy - r);
+      ctx.lineTo(cx + r * 0.3, cy - r);
+      ctx.lineTo(cx + r * 0.3, cy - r * 0.3);
+      ctx.lineTo(cx + r, cy - r * 0.3);
+      ctx.lineTo(cx + r, cy + r * 0.3);
+      ctx.lineTo(cx + r * 0.3, cy + r * 0.3);
+      ctx.lineTo(cx + r * 0.3, cy + r);
+      ctx.lineTo(cx - r * 0.3, cy + r);
+      ctx.lineTo(cx - r * 0.3, cy + r * 0.3);
+      ctx.lineTo(cx - r, cy + r * 0.3);
+      ctx.lineTo(cx - r, cy - r * 0.3);
+      ctx.lineTo(cx - r * 0.3, cy - r * 0.3);
+      ctx.closePath();
+      break;
+    case "circle":
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      break;
+    case "square":
+    default:
+      ctx.rect(cx - r, cy - r, r * 2, r * 2);
+      break;
+  }
+  ctx.fill();
+}
 
 interface FloatingText {
   x: number;
@@ -96,7 +173,7 @@ function shortenMessage(msg: string, type: string): string {
   return msg.slice(0, 12);
 }
 
-export function Arena({ state }: ArenaProps) {
+export function Arena({ state, redCosmetic, blueCosmetic }: ArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const particlesRef = useRef<Particle[]>([]);
@@ -292,7 +369,9 @@ export function Arena({ state }: ArenaProps) {
         const [red, blue] = state.fighters;
 
         for (const fighter of [red, blue]) {
-          const color = FACTION_COLORS[fighter.faction] || "#ffffff";
+          const cosmetic = fighter.id === "red" ? redCosmetic : blueCosmetic;
+          const color = cosmetic?.color || FACTION_COLORS[fighter.faction] || "#ffffff";
+          const shape = cosmetic?.shape || "square";
           const px = fighter.x * CELL_SIZE + PADDING;
           const py = fighter.y * CELL_SIZE + PADDING + 16;
           const cx = px + CELL_SIZE / 2;
@@ -344,18 +423,18 @@ export function Arena({ state }: ArenaProps) {
             ctx.globalAlpha = 0.3 + Math.random() * 0.4;
             const shrink = 4 + Math.random() * 4;
             ctx.fillStyle = stateColor;
-            ctx.fillRect(px + shrink, py + shrink, CELL_SIZE - shrink * 2, CELL_SIZE - shrink * 2);
+            drawShape(ctx, shape, cx, cy, (CELL_SIZE / 2) - shrink);
           } else {
             ctx.fillStyle = stateColor;
-            ctx.fillRect(px + 6, py + 6, CELL_SIZE - 12, CELL_SIZE - 12);
+            drawShape(ctx, shape, cx, cy, CELL_SIZE / 2 - 6);
           }
           ctx.globalAlpha = 1;
           ctx.shadowBlur = 0;
 
-          // Inner core — faction color always visible
+          // Inner core — custom color always visible
           if (!fighter.isStunned) {
             ctx.fillStyle = color;
-            ctx.fillRect(px + 12, py + 12, CELL_SIZE - 24, CELL_SIZE - 24);
+            drawShape(ctx, shape, cx, cy, CELL_SIZE / 2 - 12);
           }
 
           // Block shield — visible cyan border + icon

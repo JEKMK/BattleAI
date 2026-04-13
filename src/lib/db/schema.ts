@@ -11,6 +11,9 @@ export const runners = pgTable("runners", {
   ram: integer("ram").notNull().default(200),
   currentLevel: integer("current_level").notNull().default(0),
   bestScoreDate: timestamp("best_score_date", { withTimezone: true }),
+  // Cosmetic
+  shape: text("shape").notNull().default("diamond"),
+  color: text("color").notNull().default("#00f0ff"),
   // PVP fields
   streetCred: integer("street_cred").notNull().default(1000),
   defensePrompt: text("defense_prompt"),

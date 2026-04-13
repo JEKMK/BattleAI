@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
+import { RunnerCustomizer } from "@/components/runner-customizer";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
 import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
@@ -13,7 +14,7 @@ import { ZaibatsuWar } from "@/components/zaibatsu-war";
 import { PvpTargets } from "@/components/pvp-targets";
 import { PvpNotificationOverlay } from "@/components/pvp-notification";
 import type { Faction, GameState } from "@/lib/types";
-import { FACTION_META } from "@/lib/types";
+import { FACTION_META, type RunnerShape } from "@/lib/types";
 import { GAUNTLET_LEVELS, INITIAL_GAUNTLET, TUTORIAL_COUNT, calculateScore, type GauntletState } from "@/lib/gauntlet";
 import type { PvpTarget, PvpNotification, PvpBattleResult } from "@/lib/pvp";
 
@@ -200,6 +201,8 @@ export default function Home() {
   const [runnerToken, setRunnerToken] = useState<string | null>(null);
   const [runnerRank, setRunnerRank] = useState<{ rank: number; total: number } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [runnerShape, setRunnerShape] = useState<RunnerShape>("diamond");
+  const [runnerColor, setRunnerColor] = useState("#00f0ff");
   // PVP state
   type GameMode = "gauntlet" | "free" | "pvp";
   const [gameMode, setGameMode] = useState<GameMode>("gauntlet");
@@ -264,6 +267,12 @@ export default function Home() {
       if (booted) setHasBooted(true);
     }
 
+    // Runner cosmetics
+    const savedShape = localStorage.getItem("battleai_shape");
+    const savedColor = localStorage.getItem("battleai_color");
+    if (savedShape) setRunnerShape(savedShape as RunnerShape);
+    if (savedColor) setRunnerColor(savedColor);
+
     // Runner token for leaderboard persistence
     let token = localStorage.getItem("battleai_token");
     if (!token) {
@@ -280,7 +289,12 @@ export default function Home() {
     setFreeBattles(battles);
 
     // PVP unlock check
-    if (localStorage.getItem("battleai_pvp_unlocked")) setPvpUnlocked(true);
+    let parsedGauntlet: { currentLevel?: number } | null = null;
+    try { parsedGauntlet = saved ? JSON.parse(saved) : null; } catch { /* ignore */ }
+    if (localStorage.getItem("battleai_pvp_unlocked") || (parsedGauntlet && (parsedGauntlet.currentLevel ?? 0) >= 2)) {
+      localStorage.setItem("battleai_pvp_unlocked", "1");
+      setPvpUnlocked(true);
+    }
 
     setShowGauntlet(true);
     setHydrated(true);
@@ -740,9 +754,6 @@ export default function Home() {
           <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
           </h1>
-          {runnerName && (
-            <span className="text-neon-green/60 text-xs font-mono">{runnerName}</span>
-          )}
           <div className="h-3 w-px bg-border" />
           {/* Mode toggle */}
           <div className="hidden lg:flex gap-1">
@@ -770,6 +781,12 @@ export default function Home() {
           </button>
         </div>
         <div className="flex items-center gap-2 lg:gap-4 font-mono text-xs">
+          {runnerName && (
+            <>
+              <span className="text-neon-green font-bold">{runnerName}</span>
+              <div className="h-3 w-px bg-border hidden lg:block" />
+            </>
+          )}
           {hydrated && (gameMode === "gauntlet" || showGauntlet) && (
             <>
               <span className="hidden lg:inline text-text-dim">SCORE</span>
@@ -890,6 +907,21 @@ export default function Home() {
                 ↑ Rewrite this. Your prompt is your only weapon. Then hit JACK IN below.
               </motion.p>
             )}
+            {/* Construct customizer — collapsible */}
+            <details className="mt-2 group">
+              <summary className="text-text-dim text-xs font-mono cursor-pointer hover:text-cyan transition-colors select-none flex items-center gap-1">
+                <span className="text-xs transition-transform group-open:rotate-90">▸</span>
+                CONSTRUCT APPEARANCE
+              </summary>
+              <div className="mt-2">
+                <RunnerCustomizer
+                  shape={runnerShape}
+                  color={runnerColor}
+                  onShapeChange={(s) => { setRunnerShape(s); localStorage.setItem("battleai_shape", s); }}
+                  onColorChange={(c) => { setRunnerColor(c); localStorage.setItem("battleai_color", c); }}
+                />
+              </div>
+            </details>
           </div>
 
           {/* Faction */}
@@ -1154,7 +1186,9 @@ export default function Home() {
 
           {/* Arena */}
           <div className="relative">
-            <Arena state={gameState} />
+            <Arena state={gameState}
+              redCosmetic={{ shape: runnerShape, color: runnerColor }}
+            />
             <AnimatePresence>
               {isOver && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center bg-bg-deep/85 backdrop-blur-sm">
