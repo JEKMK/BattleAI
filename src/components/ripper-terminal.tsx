@@ -26,7 +26,6 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
   const [sysopMsg, setSysopMsg] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
   const [sort, setSort] = useState<SortMode>("price-asc");
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const fetchLoadout = useCallback(async () => {
     if (!runnerToken) return;
@@ -91,10 +90,6 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
     if (sort === "price-desc") return b.item.cost - a.item.cost;
     return a.item.name.localeCompare(b.item.name);
   });
-
-  const hoveredDef = hoveredItem
-    ? IMPLANTS[hoveredItem] || STIMS[hoveredItem]
-    : null;
 
   return (
     <AnimatePresence>
@@ -239,13 +234,6 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
                       </div>
                     </div>
 
-                    {/* Lore tooltip */}
-                    {hoveredDef && (
-                      <div className="mb-2 px-2 py-1.5 border border-text-dim/20 rounded-sm bg-bg-surface shrink-0">
-                        <span className="text-text-dim/60 text-xs font-mono italic">&quot;{hoveredDef.lore}&quot;</span>
-                      </div>
-                    )}
-
                     {/* Items grid */}
                     <div className="flex-1 overflow-y-auto">
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
@@ -257,8 +245,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
 
                           return (
                             <div key={item.id}
-                              onMouseEnter={() => setHoveredItem(item.id)}
-                              onMouseLeave={() => setHoveredItem(null)}
+                              title={item.lore}
                               className={`border rounded-sm p-2 transition-all cursor-default ${
                                 owned ? "border-cyan/30 bg-cyan/5" : "border-border hover:border-border-bright"
                               }`}
@@ -268,7 +255,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
                                   {item.icon} {item.name}
                                 </span>
                               </div>
-                              <div className="text-text-dim text-xs font-mono mb-1 truncate">{item.description}</div>
+                              <div className="text-text-secondary text-xs font-mono mb-1 truncate">{item.description}</div>
                               <div className="flex items-center justify-between">
                                 <span className="text-amber text-xs font-mono font-bold">¤{item.cost}</span>
                                 {owned ? (
