@@ -772,47 +772,54 @@ export default function Home() {
     <div className="min-h-screen lg:h-screen bg-bg-deep flex flex-col lg:overflow-hidden overflow-y-auto">
       {/* Header */}
       <header className={`border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0 transition-all duration-500 ${!uiVisible ? "invisible" : ""} ${spotlightPrompt ? "opacity-20" : ""}`}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <h1 className="font-mono text-base font-bold tracking-[0.25em] glow-cyan text-cyan animate-flicker">
             BATTLE<span className="text-magenta">AI</span>
           </h1>
-          <div className="h-3 w-px bg-border" />
-          {/* Mode toggle */}
-          <div className="hidden lg:flex gap-1">
+          <div className="h-4 w-px bg-border" />
+          {/* Navigation — all buttons same style */}
+          <nav className="flex gap-1">
             <button onClick={() => { setGameMode("gauntlet"); setShowGauntlet(true); }}
-              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${gameMode === "gauntlet" ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
+              className={`text-xs font-mono px-2.5 py-1 rounded-sm border transition-all ${
+                gameMode === "gauntlet" ? "border-cyan text-cyan bg-cyan/10 shadow-[0_0_8px_rgba(0,240,255,0.15)]" : "border-border text-text-dim hover:text-text-secondary hover:border-border-bright"
+              }`}>
               GAUNTLET
             </button>
             {pvpUnlocked && (
               <button onClick={() => { setGameMode("pvp"); setShowGauntlet(false); setPvpJustUnlocked(false); }}
-                className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
-                  gameMode === "pvp" ? "border-magenta text-magenta bg-magenta/10" :
+                className={`text-xs font-mono px-2.5 py-1 rounded-sm border transition-all ${
+                  gameMode === "pvp" ? "border-magenta text-magenta bg-magenta/10 shadow-[0_0_8px_rgba(255,45,106,0.15)]" :
                   pvpJustUnlocked ? "border-magenta text-magenta bg-magenta/10 animate-pulse-glow" :
-                  "border-border text-text-dim hover:text-text-secondary"
+                  "border-border text-text-dim hover:text-text-secondary hover:border-border-bright"
                 }`}>
                 PVP
               </button>
             )}
             <button onClick={() => { setGameMode("free"); setShowGauntlet(false); }}
-              className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${gameMode === "free" ? "border-cyan text-cyan bg-cyan/10" : "border-border text-text-dim hover:text-text-secondary"}`}>
-              FREE RUN
+              className={`text-xs font-mono px-2.5 py-1 rounded-sm border transition-all ${
+                gameMode === "free" ? "border-neon-green text-neon-green bg-neon-green/10 shadow-[0_0_8px_rgba(57,255,20,0.15)]" : "border-border text-text-dim hover:text-text-secondary hover:border-border-bright"
+              }`}>
+              FREE
             </button>
-          </div>
-          <button onClick={() => setShowLeaderboard(true)} className="text-xs font-mono text-amber/50 hover:text-amber transition-colors">
-            RANKING
-          </button>
-          <button onClick={() => setShowRipper(true)} className="text-xs font-mono text-magenta/50 hover:text-magenta transition-colors">
-            RIPPER
-          </button>
+            <div className="h-4 w-px bg-border self-center" />
+            <button onClick={() => setShowRipper(true)}
+              className="text-xs font-mono px-2.5 py-1 rounded-sm border border-border text-text-dim hover:text-magenta hover:border-magenta/50 transition-all">
+              ⚕ RIPPER
+            </button>
+            <button onClick={() => setShowLeaderboard(true)}
+              className="text-xs font-mono px-2.5 py-1 rounded-sm border border-border text-text-dim hover:text-amber hover:border-amber/50 transition-all">
+              RANKING
+            </button>
+          </nav>
         </div>
-        <div className="flex items-center gap-2 lg:gap-4 font-mono text-xs">
+        <div className="flex items-center gap-2 lg:gap-3 font-mono text-xs">
           {runnerName && (
             <>
               <span className="text-neon-green font-bold">{runnerName}</span>
               {(equippedImplants.length > 0 || activeStims.length > 0) && (
-                <span className="hidden lg:inline text-xs">{getLoadoutIcons(equippedImplants, activeStims)}</span>
+                <span className="hidden lg:inline">{getLoadoutIcons(equippedImplants, activeStims)}</span>
               )}
-              <span className="text-amber font-bold hidden lg:inline">¤{runnerCredits}</span>
+              <span className="text-amber font-bold">¤{runnerCredits}</span>
               <div className="h-3 w-px bg-border hidden lg:block" />
             </>
           )}
@@ -1410,7 +1417,7 @@ export default function Home() {
         {/* Right Panel — Intrusion Log */}
         <div key={`right-${flickerKey}`} className={`hidden lg:flex w-80 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
-            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
+            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} redImplants={equippedImplants} redStims={activeStims} />
           </div>
         </div>
         {/* Notification cards — bottom right */}
