@@ -747,7 +747,7 @@ export default function Home() {
   const isOver = gameState?.status === "ko" || gameState?.status === "timeout";
 
   return (
-    <div className="h-screen bg-bg-deep flex flex-col overflow-hidden">
+    <div className="min-h-screen lg:h-screen bg-bg-deep flex flex-col lg:overflow-hidden overflow-y-auto">
       {/* Header */}
       <header className={`border-b border-border bg-bg-panel px-4 py-1 flex items-center justify-between shrink-0 transition-all duration-500 ${!uiVisible ? "invisible" : ""} ${spotlightPrompt ? "opacity-20" : ""}`}>
         <div className="flex items-center gap-3">
@@ -828,7 +828,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden relative">
+      <main className="flex-1 flex flex-col lg:flex-row gap-0 lg:overflow-hidden overflow-visible relative">
         {/* Boot sequence overlay — covers entire main area */}
         <AnimatePresence>
           {bootPhase === "blackout" && (
@@ -873,7 +873,7 @@ export default function Home() {
 
 
         {/* Left Panel */}
-        <div key={`left-${flickerKey}`} className={`w-full lg:w-80 shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-bg-panel overflow-y-auto ${isFighting ? "hidden lg:flex" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
+        <div key={`left-${flickerKey}`} className={`w-full lg:w-80 shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-border bg-bg-panel lg:overflow-y-auto ${isFighting ? "hidden lg:flex" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out forwards, glow-surge 0.8s ease-out 0.5s" } : undefined}>
           {/* Prompt */}
           <div className={`p-3 border-b border-border transition-all duration-500 ${spotlightPrompt ? "ring-1 ring-cyan/30 bg-bg-panel" : ""}`}>
             <div className="flex items-center justify-between mb-2">
