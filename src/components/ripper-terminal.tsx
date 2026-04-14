@@ -245,14 +245,17 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
 
                           return (
                             <div key={item.id}
-                              title={item.lore}
-                              className={`border rounded-sm p-2 transition-all cursor-default ${
+                              className={`group border rounded-sm p-2 transition-all cursor-default ${
                                 owned ? "border-cyan/30 bg-cyan/5" : "border-border hover:border-border-bright"
                               }`}
                             >
                               <div className="flex items-center justify-between mb-0.5">
                                 <span className="text-xs font-mono font-bold truncate" style={{ color: owned ? "#00f0ff" : slotColor }}>
                                   {item.icon} {item.name}
+                                </span>
+                                <span title={item.lore}
+                                  className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3.5 h-3.5 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-1">
+                                  ?
                                 </span>
                               </div>
                               <div className="text-text-secondary text-xs font-mono mb-1 truncate">{item.description}</div>
