@@ -238,13 +238,20 @@ export function resolveTick(
     // Moving + attacking = 50% damage. Standing still = full damage.
     const mobilityPenalty = moved ? 0.5 : 1.0;
     const multi = actor.damageMultiplier * mobilityPenalty;
+    // First strike bonus — check if actor has any previous hits in the full battle log
+    const fx = getEffects(actorId);
+    const hasHitBefore = [...state.log, ...newLogs].some(
+      (l) => l.fighter === actorId && (l.type === "hit" || l.type === "attack")
+    );
+    const firstStrikeBonus = (!hasHitBefore && fx.firstStrikeDmg > 0) ? fx.firstStrikeDmg : 0;
     const hpTag = (f: Fighter) => `[${f.hp}/${f.maxHp}]`;
     const movingTag = moved ? " (moving)" : "";
 
     switch (action.action) {
       case "punch": {
-        if (dist <= 2) {
-          if (target.isParrying && dist <= 2) {
+        const punchRng = 2 + fx.punchRange;
+        if (dist <= punchRng) {
+          if (target.isParrying && dist <= punchRng) {
             newLogs.push(logWithPos(next.tick, targetId, "parry", `BLACK ICE triggers! Burn intercepted`, target));
             actor.isStunned = true;
             target.damageMultiplier = 2;
@@ -252,8 +259,7 @@ export function resolveTick(
             return;
           }
 
-          const fx = getEffects(actorId);
-          let dmg = Math.max(1, Math.floor((fx.punchDmg + fx.allDmgBonus) * multi));
+          let dmg = Math.max(1, Math.floor((fx.punchDmg + fx.allDmgBonus + firstStrikeBonus) * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg / 2));
             newLogs.push(logWithPos(next.tick, actorId, "attack", `Burn hit shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
@@ -273,7 +279,8 @@ export function resolveTick(
       }
 
       case "shoot": {
-        if (dist <= 5 && dist > 0) {
+        const shootRng = 5 + fx.shootRange;
+        if (dist <= shootRng && dist > 0) {
           if (target.isParrying && dist <= 3) {
             newLogs.push(logWithPos(next.tick, targetId, "parry", `BLACK ICE reflects spike at dist ${dist}`, target));
             actor.isStunned = true;
@@ -289,7 +296,7 @@ export function resolveTick(
             break;
           }
 
-          let dmg = Math.max(1, Math.floor((fx.shootDmg + fx.allDmgBonus) * multi));
+          let dmg = Math.max(1, Math.floor((fx.shootDmg + fx.allDmgBonus + firstStrikeBonus) * multi));
           if (target.isBlocking) {
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike deflected by firewall at dist ${dist}`, target));
@@ -310,7 +317,8 @@ export function resolveTick(
 
       case "heavy": {
         if (actor.cooldowns.heavy > 0) break;
-        if (dist <= 2) {
+        const heavyRng = 2 + fx.heavyRange;
+        if (dist <= heavyRng) {
           if (target.isParrying) {
             newLogs.push(logWithPos(next.tick, targetId, "parry", `BLACK ICE perfect counter on Hammer!`, target));
             actor.isStunned = true;
@@ -319,8 +327,7 @@ export function resolveTick(
             return;
           }
 
-          const fx = getEffects(actorId);
-          let dmg = Math.max(1, Math.floor((fx.heavyDmg + fx.allDmgBonus) * multi));
+          let dmg = Math.max(1, Math.floor((fx.heavyDmg + fx.allDmgBonus + firstStrikeBonus) * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg * 0.6));
             newLogs.push(logWithPos(next.tick, actorId, "hit", `Hammer cracks shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
@@ -458,8 +465,8 @@ export function buildSystemRules(allowedActions?: string[], effects?: CombatEffe
 
   // Build action descriptions with actual stats from implants
   const dynamicDescs: Record<string, string> = {
-    punch: `burn/punch (range 2, ${fx.punchDmg + fx.allDmgBonus}dmg)`,
-    shoot: `spike/shoot (range 1-5, ${fx.shootDmg + fx.allDmgBonus}dmg, accuracy drops with distance${fx.shootAccuracyBonus > 0 ? ` +${fx.shootAccuracyBonus}% bonus` : ""})`,
+    punch: `burn/punch (range ${2 + fx.punchRange}, ${fx.punchDmg + fx.allDmgBonus}dmg)`,
+    shoot: `spike/shoot (range 1-${5 + fx.shootRange}, ${fx.shootDmg + fx.allDmgBonus}dmg, accuracy drops with distance${fx.shootAccuracyBonus > 0 ? ` +${fx.shootAccuracyBonus}% bonus` : ""})`,
     heavy: `hammer/heavy (range 2, ${fx.heavyDmg + fx.allDmgBonus}dmg, cooldown ${fx.heavyCooldown})`,
     block: "shield/block (halves melee, blocks spikes)",
     dodge: `ghost/dodge (invulnerable 1 tick, cooldown ${fx.dodgeCooldown})`,
