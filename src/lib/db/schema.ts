@@ -21,11 +21,32 @@ export const runners = pgTable("runners", {
   pvpWins: integer("pvp_wins").notNull().default(0),
   pvpLosses: integer("pvp_losses").notNull().default(0),
   lastHackedAt: timestamp("last_hacked_at", { withTimezone: true }),
+  // Economy
+  credits: integer("credits").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_runners_total_score").on(t.totalScore),
   index("idx_runners_street_cred").on(t.streetCred),
+]);
+
+export const runnerImplants = pgTable("runner_implants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runnerId: uuid("runner_id").notNull().references(() => runners.id),
+  implantId: text("implant_id").notNull(),
+  slotType: text("slot_type").notNull(),
+  equippedAt: timestamp("equipped_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_runner_implants_runner").on(t.runnerId),
+]);
+
+export const runnerStims = pgTable("runner_stims", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runnerId: uuid("runner_id").notNull().references(() => runners.id),
+  stimId: text("stim_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_runner_stims_runner").on(t.runnerId),
 ]);
 
 export const battleResults = pgTable("battle_results", {

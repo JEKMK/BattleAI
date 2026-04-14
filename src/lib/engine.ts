@@ -7,6 +7,7 @@ import {
   type Direction,
   DEFAULT_CONFIG,
 } from "./types";
+import { type CombatEffects, BASE_EFFECTS } from "./implants";
 
 export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameState {
   // Spawn at different Y positions to force 2D movement
@@ -86,9 +87,9 @@ function applyMove(fighter: Fighter, dir: Direction, bounds: GameState["bounds"]
 }
 
 /** Shoot accuracy drops with distance */
-function shootHits(dist: number): boolean {
+function shootHits(dist: number, accuracyBonusPct: number = 0): boolean {
   // dist 1: 100%, dist 2: 90%, dist 3: 75%, dist 4: 55%, dist 5: 35%
-  const accuracy = Math.max(0.2, 1.0 - (dist - 1) * 0.18);
+  const accuracy = Math.min(1.0, Math.max(0.2, 1.0 - (dist - 1) * 0.18 + accuracyBonusPct / 100));
   return Math.random() < accuracy;
 }
 
@@ -114,6 +115,8 @@ export function resolveTick(
   blueAction: FighterAction,
   redFirst: boolean = true,
   allowedActions?: string[],
+  redEffects?: CombatEffects,
+  blueEffects?: CombatEffects,
 ): GameState {
   // Filter disallowed actions to "none"
   if (allowedActions) {
@@ -125,6 +128,11 @@ export function resolveTick(
   next.tick++;
   const [red, blue] = next.fighters;
   const newLogs: LogEntry[] = [];
+
+  // Combat effects per fighter (implants + stims)
+  const re = redEffects ?? BASE_EFFECTS;
+  const be = blueEffects ?? BASE_EFFECTS;
+  const getEffects = (id: "red" | "blue") => id === "red" ? re : be;
 
   // Arena shrink — every 15 ticks, bounds close in by 1 on each side
   // Starts at tick 30 to give time to warm up
@@ -197,16 +205,17 @@ export function resolveTick(
   ) => {
     if (wasStunned) return;
 
+    const fx = getEffects(actorId);
     if (action.action === "block") {
       actor.isBlocking = true;
       newLogs.push(logWithPos(next.tick, actorId, "block", "Shield raised — firewall hardened", actor));
     } else if (action.action === "dodge" && actor.cooldowns.dodge <= 0) {
       actor.isInvulnerable = true;
-      actor.cooldowns.dodge = 4;
-      newLogs.push(logWithPos(next.tick, actorId, "dodge", "Phase shift — quantum state active", actor));
+      actor.cooldowns.dodge = fx.dodgeCooldown;
+      newLogs.push(logWithPos(next.tick, actorId, "dodge", `Phase shift — quantum state active (cd: ${fx.dodgeCooldown})`, actor));
     } else if (action.action === "parry" && actor.cooldowns.parry <= 0) {
       actor.isParrying = true;
-      actor.cooldowns.parry = 5;
+      actor.cooldowns.parry = fx.parryCooldown;
       newLogs.push(logWithPos(next.tick, actorId, "parry", "Black ICE deployed — counter-intrusion armed", actor));
     }
   };
@@ -243,7 +252,8 @@ export function resolveTick(
             return;
           }
 
-          let dmg = Math.max(1, Math.floor(2 * multi));
+          const fx = getEffects(actorId);
+          let dmg = Math.max(1, Math.floor((fx.punchDmg + fx.allDmgBonus) * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg / 2));
             newLogs.push(logWithPos(next.tick, actorId, "attack", `Burn hit shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
@@ -272,13 +282,14 @@ export function resolveTick(
             return;
           }
 
-          const acc = Math.max(20, Math.round((1.0 - (dist - 1) * 0.18) * 100));
-          if (!shootHits(dist)) {
+          const fx = getEffects(actorId);
+          const acc = Math.min(100, Math.max(20, Math.round((1.0 - (dist - 1) * 0.18 + fx.shootAccuracyBonus / 100) * 100)));
+          if (!shootHits(dist, fx.shootAccuracyBonus)) {
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike scattered at dist ${dist} — ${acc}% lock, no contact`, actor));
             break;
           }
 
-          let dmg = Math.max(1, Math.floor(1 * multi));
+          let dmg = Math.max(1, Math.floor((fx.shootDmg + fx.allDmgBonus) * multi));
           if (target.isBlocking) {
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike deflected by firewall at dist ${dist}`, target));
@@ -308,7 +319,8 @@ export function resolveTick(
             return;
           }
 
-          let dmg = Math.max(1, Math.floor(3 * multi));
+          const fx = getEffects(actorId);
+          let dmg = Math.max(1, Math.floor((fx.heavyDmg + fx.allDmgBonus) * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg * 0.6));
             newLogs.push(logWithPos(next.tick, actorId, "hit", `Hammer cracks shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
@@ -321,7 +333,7 @@ export function resolveTick(
           }
           target.hp = Math.max(0, target.hp - dmg);
           actor.damageMultiplier = 1;
-          actor.cooldowns.heavy = 3;
+          actor.cooldowns.heavy = fx.heavyCooldown;
         } else {
           newLogs.push(logWithPos(next.tick, actorId, "miss", `Hammer whiffs — target at dist ${dist}`, actor));
         }
@@ -348,6 +360,15 @@ export function resolveTick(
   }
   if (blue.isParrying && !red.isStunned && !["punch", "shoot", "heavy"].includes(redAction.action)) {
     newLogs.push(logWithPos(next.tick, "blue", "miss", "Black ICE fizzles — no intrusion detected", blue));
+  }
+
+  // Regen from implants/stims (e.g. Bounce Back)
+  for (const [fighter, fighterId] of [[red, "red"], [blue, "blue"]] as const) {
+    const fx = getEffects(fighterId);
+    if (fx.regenPerTicks > 0 && next.tick % fx.regenPerTicks === 0 && fighter.hp > 0 && fighter.hp < fighter.maxHp) {
+      fighter.hp = Math.min(fighter.maxHp, fighter.hp + 1);
+      newLogs.push(logWithPos(next.tick, fighterId, "heal", `+1 HP (regen) [${fighter.hp}/${fighter.maxHp}]`, fighter));
+    }
   }
 
   // Check KO
@@ -431,11 +452,23 @@ const ACTION_DESCRIPTIONS: Record<string, string> = {
 
 const ALL_ACTIONS = ["punch", "shoot", "heavy", "block", "dodge", "parry"];
 
-export function buildSystemRules(allowedActions?: string[]): string {
+export function buildSystemRules(allowedActions?: string[], effects?: CombatEffects): string {
   const actions = allowedActions ?? ALL_ACTIONS;
+  const fx = effects ?? BASE_EFFECTS;
+
+  // Build action descriptions with actual stats from implants
+  const dynamicDescs: Record<string, string> = {
+    punch: `burn/punch (range 2, ${fx.punchDmg + fx.allDmgBonus}dmg)`,
+    shoot: `spike/shoot (range 1-5, ${fx.shootDmg + fx.allDmgBonus}dmg, accuracy drops with distance${fx.shootAccuracyBonus > 0 ? ` +${fx.shootAccuracyBonus}% bonus` : ""})`,
+    heavy: `hammer/heavy (range 2, ${fx.heavyDmg + fx.allDmgBonus}dmg, cooldown ${fx.heavyCooldown})`,
+    block: "shield/block (halves melee, blocks spikes)",
+    dodge: `ghost/dodge (invulnerable 1 tick, cooldown ${fx.dodgeCooldown})`,
+    parry: `black_ice/parry (counter: if enemy attacks this tick → stun + 2x next hit, cooldown ${fx.parryCooldown})`,
+  };
+
   const actionDescs = actions
-    .filter((a) => ACTION_DESCRIPTIONS[a])
-    .map((a) => ACTION_DESCRIPTIONS[a])
+    .filter((a) => dynamicDescs[a])
+    .map((a) => dynamicDescs[a])
     .join(", ");
 
   let rules = `Arena combat. Each tick you choose 1 move + 1 action.
@@ -452,6 +485,11 @@ Moving + attacking = half damage. Standing still + attacking = full damage.`;
 
   if (actions.includes("heavy") || actions.includes("dodge") || actions.includes("parry")) {
     rules += `\nSome actions have cooldowns — check your cooldowns before choosing.`;
+  }
+
+  // Inject implant/stim prompt lines
+  if (fx.regenPerTicks > 0) {
+    rules += `\nYou regenerate 1 HP every ${fx.regenPerTicks} ticks.`;
   }
 
   rules += `

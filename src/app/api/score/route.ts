@@ -38,6 +38,9 @@ export async function POST(req: Request) {
       const newTotal = runner.totalScore + score;
       const newBest = score > 0 && newTotal > runner.totalScore ? new Date() : runner.bestScoreDate;
 
+      // Credit reward: level * 20 for gauntlet wins
+      const creditReward = won ? Math.max(20, (level || 1) * 20) : 0;
+
       await db.update(runners)
         .set({
           name: name || runner.name,
@@ -47,6 +50,7 @@ export async function POST(req: Request) {
           draws: draws != null ? draws : runner.draws,
           ram: ram || runner.ram,
           currentLevel: currentLevel != null ? currentLevel : runner.currentLevel,
+          credits: runner.credits + creditReward,
           bestScoreDate: newBest,
           updatedAt: new Date(),
           ...(defensePrompt && { defensePrompt }),

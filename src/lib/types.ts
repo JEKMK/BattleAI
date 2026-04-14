@@ -70,7 +70,7 @@ export interface GameState {
 export interface LogEntry {
   tick: number;
   fighter: "red" | "blue";
-  type: "move" | "attack" | "hit" | "miss" | "block" | "dodge" | "parry" | "stun" | "ko" | "system";
+  type: "move" | "attack" | "hit" | "miss" | "block" | "dodge" | "parry" | "stun" | "ko" | "system" | "heal";
   message: string;
   // For floating text rendering
   x?: number;
