@@ -2,10 +2,13 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import type { LogEntry } from "@/lib/types";
+import { IMPLANTS, STIMS } from "@/lib/implants";
 
 interface CombatLogProps {
   logs: LogEntry[];
   simplified?: boolean;
+  redImplants?: string[];
+  redStims?: string[];
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -18,6 +21,7 @@ const TYPE_COLORS: Record<string, string> = {
   attack: "text-amber",
   move: "text-text-dim",
   ko: "text-magenta",
+  heal: "text-neon-green",
   system: "text-amber",
 };
 
@@ -49,7 +53,24 @@ function simplifyMessage(msg: string, type: string): string {
   return msg;
 }
 
-export function CombatLog({ logs, simplified = false }: CombatLogProps) {
+/** Get implant icon if this log line was boosted by an equipped implant/stim */
+function getImplantMarker(msg: string, type: string, fighter: string, implants: string[], stims: string[]): string {
+  if (fighter !== "red") return ""; // only mark player's actions
+  const icons: string[] = [];
+
+  if (type === "hit" || type === "attack") {
+    if (msg.includes("Burn") && implants.includes("gorilla_arms")) icons.push(IMPLANTS.gorilla_arms.icon);
+    if (msg.includes("Spike") && implants.includes("kiroshi_optics")) icons.push(IMPLANTS.kiroshi_optics.icon);
+    if (stims.includes("black_lace")) icons.push(STIMS.black_lace.icon);
+  }
+  if (type === "heal") {
+    if (stims.includes("bounce_back")) icons.push(STIMS.bounce_back.icon);
+  }
+
+  return icons.join("");
+}
+
+export function CombatLog({ logs, simplified = false, redImplants = [], redStims = [] }: CombatLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -101,6 +122,10 @@ export function CombatLog({ logs, simplified = false }: CombatLogProps) {
             </span>
             <span className={TYPE_COLORS[log.type] || "text-text-primary"}>
               {simplified ? simplifyMessage(log.message, log.type) : log.message}
+              {(() => {
+                const marker = getImplantMarker(log.message, log.type, log.fighter, redImplants, redStims);
+                return marker ? <span className="ml-1">{marker}</span> : null;
+              })()}
             </span>
           </div>
         ))}

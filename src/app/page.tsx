@@ -1417,7 +1417,7 @@ export default function Home() {
         {/* Right Panel — Intrusion Log */}
         <div key={`right-${flickerKey}`} className={`hidden lg:flex w-80 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
-            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} />
+            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} redImplants={equippedImplants} redStims={activeStims} />
           </div>
         </div>
         {/* Notification cards — bottom right */}
