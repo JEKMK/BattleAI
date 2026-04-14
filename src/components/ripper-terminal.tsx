@@ -16,19 +16,22 @@ interface RipperTerminalProps {
   onLoadoutChange?: (loadout: Loadout) => void;
 }
 
+type SortMode = "price-asc" | "price-desc" | "name";
+type FilterMode = "all" | "neural" | "cyberware" | "stim";
+
 export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: RipperTerminalProps) {
   const [loadout, setLoadout] = useState<Loadout | null>(null);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<string | null>(null);
   const [sysopMsg, setSysopMsg] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "neural" | "cyberware" | "stim">("all");
+  const [filter, setFilter] = useState<FilterMode>("all");
+  const [sort, setSort] = useState<SortMode>("price-asc");
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const fetchLoadout = useCallback(async () => {
     if (!runnerToken) return;
     try {
-      const res = await fetch("/api/ripper/loadout", {
-        headers: { "x-runner-token": runnerToken },
-      });
+      const res = await fetch("/api/ripper/loadout", { headers: { "x-runner-token": runnerToken } });
       const data = await res.json();
       if (res.ok) setLoadout(data);
     } catch { /* silent */ }
@@ -61,11 +64,8 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
       } else {
         setSysopMsg(data.error || "Transaction failed.");
       }
-    } catch {
-      setSysopMsg("Connection lost. Try again.");
-    } finally {
-      setBuying(null);
-    }
+    } catch { setSysopMsg("Connection lost."); }
+    finally { setBuying(null); }
   }, [runnerToken, buying, fetchLoadout, loadout, onLoadoutChange]);
 
   const equippedIds = new Set(loadout?.implants.map((i) => i.implantId) ?? []);
@@ -73,6 +73,28 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
   const implantIds = loadout?.implants.map((i) => i.implantId) ?? [];
   const stimIds = loadout?.stims.map((s) => s.stimId) ?? [];
   const effects = buildCombatEffects(implantIds, stimIds);
+
+  // Build filtered + sorted item list
+  const allItems: { item: ImplantDef | StimDef; type: "implant" | "stim" }[] = [];
+  if (filter === "all" || filter === "neural") {
+    Object.values(IMPLANTS).filter((i) => i.slot === "neural").forEach((item) => allItems.push({ item, type: "implant" }));
+  }
+  if (filter === "all" || filter === "cyberware") {
+    Object.values(IMPLANTS).filter((i) => i.slot === "cyberware").forEach((item) => allItems.push({ item, type: "implant" }));
+  }
+  if (filter === "all" || filter === "stim") {
+    Object.values(STIMS).forEach((item) => allItems.push({ item, type: "stim" }));
+  }
+
+  allItems.sort((a, b) => {
+    if (sort === "price-asc") return a.item.cost - b.item.cost;
+    if (sort === "price-desc") return b.item.cost - a.item.cost;
+    return a.item.name.localeCompare(b.item.name);
+  });
+
+  const hoveredDef = hoveredItem
+    ? IMPLANTS[hoveredItem] || STIMS[hoveredItem]
+    : null;
 
   return (
     <AnimatePresence>
@@ -89,7 +111,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 0.1, type: "spring", damping: 25 }}
-          className="relative w-full max-w-2xl max-h-[85vh] flex flex-col"
+          className="relative w-full max-w-4xl max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="bg-bg-deep border border-magenta/30 rounded-sm overflow-hidden relative crt-terminal flex flex-col"
@@ -114,208 +136,174 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
 
             {/* SYSOP message */}
             {sysopMsg && (
-              <div className="border-b border-neon-green/10 px-4 py-2 bg-neon-green/5 shrink-0">
+              <div className="border-b border-neon-green/10 px-4 py-1.5 bg-neon-green/5 shrink-0">
                 <span className="text-neon-green/40 text-xs font-mono">SYSOP&gt; </span>
                 <span className="text-neon-green text-xs font-mono">{sysopMsg}</span>
               </div>
             )}
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
               {loading ? (
                 <div className="flex-1 flex items-center justify-center">
                   <span className="text-magenta/50 font-mono text-sm cursor-blink">SCANNING WETWARE...</span>
                 </div>
               ) : (
                 <>
-                  {/* Left: YOUR DECK */}
-                  <div className="sm:w-1/2">
-                    <div className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-3">Your Deck</div>
+                  {/* Left: YOUR DECK (compact) */}
+                  <div className="lg:w-56 shrink-0 border-b lg:border-b-0 lg:border-r border-border p-3 overflow-y-auto">
+                    <div className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-2">Your Deck</div>
 
-                    {/* Neural slot */}
-                    <div className="mb-3">
-                      <div className="text-text-dim text-xs font-mono mb-1">🧠 NEURAL</div>
-                      {loadout?.implants.filter((i) => i.slotType === "neural").map((i) => {
-                        const def = IMPLANTS[i.implantId];
-                        return def ? (
-                          <div key={i.implantId} className="bg-bg-surface border border-cyan/20 rounded-sm p-2 mb-1">
-                            <span className="text-cyan text-xs font-mono font-bold">{def.icon} {def.name}</span>
-                            <div className="text-text-dim text-xs font-mono">{def.description}</div>
-                          </div>
-                        ) : null;
-                      })}
-                      {!loadout?.implants.some((i) => i.slotType === "neural") && (
-                        <div className="border border-dashed border-border rounded-sm p-2 text-text-dim text-xs font-mono">[empty slot]</div>
-                      )}
-                    </div>
+                    {/* Equipped slots */}
+                    {(["neural", "cyberware"] as const).map((slot) => {
+                      const equipped = loadout?.implants.find((i) => i.slotType === slot);
+                      const def = equipped ? IMPLANTS[equipped.implantId] : null;
+                      return (
+                        <div key={slot} className="mb-2">
+                          <div className="text-text-dim text-xs font-mono mb-0.5">{slot === "neural" ? "🧠" : "🦾"} {slot.toUpperCase()}</div>
+                          {def ? (
+                            <div className="bg-bg-surface border border-cyan/20 rounded-sm px-2 py-1">
+                              <span className="text-cyan text-xs font-mono font-bold">{def.icon} {def.name}</span>
+                            </div>
+                          ) : (
+                            <div className="border border-dashed border-border rounded-sm px-2 py-1 text-text-dim text-xs font-mono">[empty]</div>
+                          )}
+                        </div>
+                      );
+                    })}
 
-                    {/* Cyberware slot */}
-                    <div className="mb-3">
-                      <div className="text-text-dim text-xs font-mono mb-1">🦾 CYBERWARE</div>
-                      {loadout?.implants.filter((i) => i.slotType === "cyberware").map((i) => {
-                        const def = IMPLANTS[i.implantId];
-                        return def ? (
-                          <div key={i.implantId} className="bg-bg-surface border border-cyan/20 rounded-sm p-2 mb-1">
-                            <span className="text-cyan text-xs font-mono font-bold">{def.icon} {def.name}</span>
-                            <div className="text-text-dim text-xs font-mono">{def.description}</div>
-                          </div>
-                        ) : null;
-                      })}
-                      {!loadout?.implants.some((i) => i.slotType === "cyberware") && (
-                        <div className="border border-dashed border-border rounded-sm p-2 text-text-dim text-xs font-mono">[empty slot]</div>
-                      )}
-                    </div>
-
-                    {/* Active stims */}
-                    <div className="mb-3">
-                      <div className="text-text-dim text-xs font-mono mb-1">💊 STIMS (1 battle)</div>
-                      {loadout?.stims.map((s) => {
+                    {/* Stims */}
+                    <div className="mb-2">
+                      <div className="text-text-dim text-xs font-mono mb-0.5">💊 STIMS</div>
+                      {loadout?.stims.length ? loadout.stims.map((s) => {
                         const def = STIMS[s.stimId];
                         return def ? (
-                          <div key={s.stimId} className="bg-bg-surface border border-amber/20 rounded-sm p-2 mb-1">
-                            <span className="text-amber text-xs font-mono font-bold">{def.icon} {def.name}</span>
-                            <div className="text-text-dim text-xs font-mono">{def.description}</div>
+                          <div key={s.stimId} className="bg-bg-surface border border-amber/20 rounded-sm px-2 py-1 mb-0.5">
+                            <span className="text-amber text-xs font-mono">{def.icon} {def.name}</span>
                           </div>
                         ) : null;
-                      })}
-                      {(!loadout?.stims || loadout.stims.length === 0) && (
-                        <div className="border border-dashed border-border rounded-sm p-2 text-text-dim text-xs font-mono">[none loaded]</div>
+                      }) : (
+                        <div className="border border-dashed border-border rounded-sm px-2 py-1 text-text-dim text-xs font-mono">[none]</div>
                       )}
                     </div>
 
-                    {/* Modified stats */}
-                    <div className="border-t border-border pt-2 mt-2">
-                      <div className="text-text-dim text-xs font-mono mb-1">ACTIVE MODS</div>
-                      <div className="grid grid-cols-2 gap-1 text-xs font-mono">
-                        <span className="text-text-dim">Punch:</span>
-                        <span className={effects.punchDmg > BASE_EFFECTS.punchDmg ? "text-neon-green" : "text-text-secondary"}>
-                          {effects.punchDmg + effects.allDmgBonus} DMG
-                        </span>
-                        <span className="text-text-dim">Shoot:</span>
-                        <span className={effects.shootDmg + effects.allDmgBonus > BASE_EFFECTS.shootDmg ? "text-neon-green" : "text-text-secondary"}>
-                          {effects.shootDmg + effects.allDmgBonus} DMG {effects.shootAccuracyBonus > 0 ? `+${effects.shootAccuracyBonus}%` : ""}
-                        </span>
-                        <span className="text-text-dim">Heavy:</span>
-                        <span className={effects.heavyDmg + effects.allDmgBonus > BASE_EFFECTS.heavyDmg ? "text-neon-green" : "text-text-secondary"}>
-                          {effects.heavyDmg + effects.allDmgBonus} DMG
-                        </span>
-                        <span className="text-text-dim">HP:</span>
-                        <span className={effects.maxHpBonus > 0 ? "text-neon-green" : "text-text-secondary"}>
-                          {10 + effects.maxHpBonus}
-                        </span>
-                        <span className="text-text-dim">Dodge cd:</span>
-                        <span className="text-text-secondary">{effects.dodgeCooldown}</span>
-                        <span className="text-text-dim">RAM bonus:</span>
-                        <span className={effects.ramBonus > 0 ? "text-neon-green" : "text-text-secondary"}>
-                          +{effects.ramBonus}
-                        </span>
+                    {/* Stats */}
+                    <div className="border-t border-border pt-2 mt-1">
+                      <div className="text-text-dim text-xs font-mono mb-1">MODS</div>
+                      <div className="space-y-0.5 text-xs font-mono">
+                        {[
+                          ["Punch", `${effects.punchDmg + effects.allDmgBonus} DMG / rng ${2 + effects.punchRange}`, effects.punchDmg > BASE_EFFECTS.punchDmg || effects.allDmgBonus > 0 || effects.punchRange > 0],
+                          ["Shoot", `${effects.shootDmg + effects.allDmgBonus} DMG${effects.shootAccuracyBonus > 0 ? ` +${effects.shootAccuracyBonus}%` : ""}`, effects.shootDmg > BASE_EFFECTS.shootDmg || effects.allDmgBonus > 0 || effects.shootAccuracyBonus > 0],
+                          ["Heavy", `${effects.heavyDmg + effects.allDmgBonus} DMG / cd ${effects.heavyCooldown}`, effects.heavyDmg > BASE_EFFECTS.heavyDmg || effects.allDmgBonus > 0 || effects.heavyCooldown < BASE_EFFECTS.heavyCooldown],
+                          ["HP", `${10 + effects.maxHpBonus}`, effects.maxHpBonus !== 0],
+                          ["Dodge", `cd ${effects.dodgeCooldown}`, effects.dodgeCooldown !== BASE_EFFECTS.dodgeCooldown],
+                          ["Parry", `cd ${effects.parryCooldown}`, effects.parryCooldown !== BASE_EFFECTS.parryCooldown],
+                          ["RAM", `+${effects.ramBonus}`, effects.ramBonus !== 0],
+                        ].map(([label, val, modified]) => (
+                          <div key={label as string} className="flex justify-between">
+                            <span className="text-text-dim">{label as string}</span>
+                            <span className={modified ? "text-neon-green" : "text-text-secondary"}>{val as string}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: RIPPER'S STOCK */}
-                  <div className="sm:w-1/2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-text-secondary text-xs font-mono uppercase tracking-widest">Ripper&apos;s Stock</span>
-                    </div>
-
-                    {/* Category filter */}
-                    <div className="flex gap-1 mb-3">
-                      {([["all", "ALL"], ["neural", "🧠 NEURAL"], ["cyberware", "🦾 CYBER"], ["stim", "💊 STIMS"]] as const).map(([key, label]) => (
-                        <button key={key} onClick={() => setFilter(key)}
-                          className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
-                            filter === key ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"
-                          }`}>
-                          {label}
+                  {/* Right: STORE (grid) */}
+                  <div className="flex-1 flex flex-col overflow-hidden p-3">
+                    {/* Controls */}
+                    <div className="flex items-center justify-between mb-2 shrink-0 gap-2 flex-wrap">
+                      <div className="flex gap-1">
+                        {([["all", "ALL"], ["neural", "🧠"], ["cyberware", "🦾"], ["stim", "💊"]] as const).map(([key, label]) => (
+                          <button key={key} onClick={() => setFilter(key)}
+                            className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
+                              filter === key ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"
+                            }`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => setSort("price-asc")}
+                          className={`text-xs font-mono px-1.5 py-0.5 rounded-sm border transition-all ${sort === "price-asc" ? "border-amber text-amber" : "border-border text-text-dim"}`}>
+                          ¤↑
                         </button>
-                      ))}
+                        <button onClick={() => setSort("price-desc")}
+                          className={`text-xs font-mono px-1.5 py-0.5 rounded-sm border transition-all ${sort === "price-desc" ? "border-amber text-amber" : "border-border text-text-dim"}`}>
+                          ¤↓
+                        </button>
+                        <button onClick={() => setSort("name")}
+                          className={`text-xs font-mono px-1.5 py-0.5 rounded-sm border transition-all ${sort === "name" ? "border-cyan text-cyan" : "border-border text-text-dim"}`}>
+                          A-Z
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Items */}
-                    {(filter === "all" || filter === "neural") && Object.values(IMPLANTS)
-                      .filter((i) => i.slot === "neural")
-                      .map((item) => (
-                        <ItemCard key={item.id} item={item} type="implant"
-                          owned={equippedIds.has(item.id)}
-                          canAfford={(loadout?.credits ?? 0) >= item.cost}
-                          buying={buying === item.id}
-                          onBuy={() => buy(item.id, "implant")} />
-                      ))}
-                    {(filter === "all" || filter === "cyberware") && Object.values(IMPLANTS)
-                      .filter((i) => i.slot === "cyberware")
-                      .map((item) => (
-                        <ItemCard key={item.id} item={item} type="implant"
-                          owned={equippedIds.has(item.id)}
-                          canAfford={(loadout?.credits ?? 0) >= item.cost}
-                          buying={buying === item.id}
-                          onBuy={() => buy(item.id, "implant")} />
-                      ))}
-                    {(filter === "all" || filter === "stim") && Object.values(STIMS).map((item) => (
-                      <ItemCard key={item.id} item={item} type="stim"
-                        owned={activeStimIds.has(item.id)}
-                        canAfford={(loadout?.credits ?? 0) >= item.cost}
-                        buying={buying === item.id}
-                        onBuy={() => buy(item.id, "stim")} />
-                    ))}
+                    {/* Lore tooltip */}
+                    {hoveredDef && (
+                      <div className="mb-2 px-2 py-1.5 border border-text-dim/20 rounded-sm bg-bg-surface shrink-0">
+                        <span className="text-text-dim/60 text-xs font-mono italic">&quot;{hoveredDef.lore}&quot;</span>
+                      </div>
+                    )}
+
+                    {/* Items grid */}
+                    <div className="flex-1 overflow-y-auto">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                        {allItems.map(({ item, type }) => {
+                          const owned = type === "implant" ? equippedIds.has(item.id) : activeStimIds.has(item.id);
+                          const canAfford = (loadout?.credits ?? 0) >= item.cost;
+                          const slot = type === "implant" ? (item as ImplantDef).slot : "stim";
+                          const slotColor = slot === "neural" ? "#b44aff" : slot === "cyberware" ? "#00f0ff" : "#ffb800";
+
+                          return (
+                            <div key={item.id}
+                              onMouseEnter={() => setHoveredItem(item.id)}
+                              onMouseLeave={() => setHoveredItem(null)}
+                              className={`border rounded-sm p-2 transition-all cursor-default ${
+                                owned ? "border-cyan/30 bg-cyan/5" : "border-border hover:border-border-bright"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-xs font-mono font-bold truncate" style={{ color: owned ? "#00f0ff" : slotColor }}>
+                                  {item.icon} {item.name}
+                                </span>
+                              </div>
+                              <div className="text-text-dim text-xs font-mono mb-1 truncate">{item.description}</div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-amber text-xs font-mono font-bold">¤{item.cost}</span>
+                                {owned ? (
+                                  <span className="text-cyan text-xs font-mono">ON</span>
+                                ) : (
+                                  <button onClick={() => buy(item.id, type)} disabled={!canAfford || buying === item.id}
+                                    className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
+                                      canAfford && buying !== item.id
+                                        ? "border-magenta text-magenta hover:bg-magenta/10"
+                                        : "border-border text-text-dim cursor-not-allowed"
+                                    }`}>
+                                    {buying === item.id ? "..." : "BUY"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
             </div>
 
             {/* Footer */}
-            <div className="border-t border-border/50 px-4 py-2 flex items-center justify-between shrink-0">
+            <div className="border-t border-border/50 px-4 py-1.5 flex items-center justify-between shrink-0">
               <button onClick={onClose} className="text-xs font-mono text-magenta/40 hover:text-magenta transition-colors">
-                &gt; CLOSE TERMINAL
+                &gt; CLOSE
               </button>
-              <span className="text-xs font-mono text-text-dim">ESC TO CLOSE</span>
+              <span className="text-xs font-mono text-text-dim">{allItems.length} items</span>
             </div>
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
-  );
-}
-
-function ItemCard({ item, type, owned, canAfford, buying, onBuy }: {
-  item: ImplantDef | StimDef;
-  type: "implant" | "stim";
-  owned: boolean;
-  canAfford: boolean;
-  buying: boolean;
-  onBuy: () => void;
-}) {
-  const slot = type === "implant" ? (item as ImplantDef).slot.toUpperCase() : "STIM";
-
-  return (
-    <div className={`border rounded-sm p-2 mb-1.5 transition-all ${
-      owned ? "border-cyan/30 bg-cyan/5" : "border-border hover:border-border-bright"
-    }`}>
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-xs font-mono font-bold" style={{ color: owned ? "#00f0ff" : type === "stim" ? "#ffb800" : "#b44aff" }}>
-          {item.icon} {item.name}
-        </span>
-        <span className="text-xs font-mono text-text-dim">{slot}</span>
-      </div>
-      <div className="text-text-dim text-xs font-mono mb-0.5">{item.description}</div>
-      <div className="text-text-dim/50 text-xs font-mono mb-1 italic leading-tight">{item.lore}</div>
-      <div className="flex items-center justify-between">
-        <span className="text-amber text-xs font-mono font-bold">¤ {item.cost}</span>
-        {owned ? (
-          <span className="text-cyan text-xs font-mono">EQUIPPED</span>
-        ) : (
-          <button
-            onClick={onBuy}
-            disabled={!canAfford || buying}
-            className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
-              canAfford && !buying
-                ? "border-magenta text-magenta hover:bg-magenta/10"
-                : "border-border text-text-dim cursor-not-allowed"
-            }`}
-          >
-            {buying ? "..." : "BUY"}
-          </button>
-        )}
-      </div>
-    </div>
   );
 }
