@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, boolean, index, jsonb } from "drizzle-orm/pg-core";
 
 export const runners = pgTable("runners", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -59,6 +59,7 @@ export const battleResults = pgTable("battle_results", {
   hpLeft: integer("hp_left").notNull(),
   enemyHpMax: integer("enemy_hp_max").notNull(),
   faction: text("faction").notNull(),
+  loadout: jsonb("loadout"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_battle_results_runner").on(t.runnerId),

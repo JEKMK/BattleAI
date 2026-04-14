@@ -21,6 +21,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState<string | null>(null);
   const [sysopMsg, setSysopMsg] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "neural" | "cyberware" | "stim">("all");
 
   const fetchLoadout = useCallback(async () => {
     if (!runnerToken) return;
@@ -214,21 +215,42 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
 
                   {/* Right: RIPPER'S STOCK */}
                   <div className="sm:w-1/2">
-                    <div className="text-text-secondary text-xs font-mono uppercase tracking-widest mb-3">Ripper&apos;s Stock</div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-text-secondary text-xs font-mono uppercase tracking-widest">Ripper&apos;s Stock</span>
+                    </div>
 
-                    {/* Implants */}
-                    {Object.values(IMPLANTS).map((item) => (
-                      <ItemCard key={item.id} item={item} type="implant"
-                        owned={equippedIds.has(item.id)}
-                        canAfford={(loadout?.credits ?? 0) >= item.cost}
-                        buying={buying === item.id}
-                        onBuy={() => buy(item.id, "implant")} />
-                    ))}
+                    {/* Category filter */}
+                    <div className="flex gap-1 mb-3">
+                      {([["all", "ALL"], ["neural", "🧠 NEURAL"], ["cyberware", "🦾 CYBER"], ["stim", "💊 STIMS"]] as const).map(([key, label]) => (
+                        <button key={key} onClick={() => setFilter(key)}
+                          className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
+                            filter === key ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
 
-                    <div className="h-2" />
-
-                    {/* Stims */}
-                    {Object.values(STIMS).map((item) => (
+                    {/* Items */}
+                    {(filter === "all" || filter === "neural") && Object.values(IMPLANTS)
+                      .filter((i) => i.slot === "neural")
+                      .map((item) => (
+                        <ItemCard key={item.id} item={item} type="implant"
+                          owned={equippedIds.has(item.id)}
+                          canAfford={(loadout?.credits ?? 0) >= item.cost}
+                          buying={buying === item.id}
+                          onBuy={() => buy(item.id, "implant")} />
+                      ))}
+                    {(filter === "all" || filter === "cyberware") && Object.values(IMPLANTS)
+                      .filter((i) => i.slot === "cyberware")
+                      .map((item) => (
+                        <ItemCard key={item.id} item={item} type="implant"
+                          owned={equippedIds.has(item.id)}
+                          canAfford={(loadout?.credits ?? 0) >= item.cost}
+                          buying={buying === item.id}
+                          onBuy={() => buy(item.id, "implant")} />
+                      ))}
+                    {(filter === "all" || filter === "stim") && Object.values(STIMS).map((item) => (
                       <ItemCard key={item.id} item={item} type="stim"
                         owned={activeStimIds.has(item.id)}
                         canAfford={(loadout?.credits ?? 0) >= item.cost}
@@ -274,7 +296,8 @@ function ItemCard({ item, type, owned, canAfford, buying, onBuy }: {
         </span>
         <span className="text-xs font-mono text-text-dim">{slot}</span>
       </div>
-      <div className="text-text-dim text-xs font-mono mb-1">{item.description}</div>
+      <div className="text-text-dim text-xs font-mono mb-0.5">{item.description}</div>
+      <div className="text-text-dim/50 text-xs font-mono mb-1 italic leading-tight">{item.lore}</div>
       <div className="flex items-center justify-between">
         <span className="text-amber text-xs font-mono font-bold">¤ {item.cost}</span>
         {owned ? (
