@@ -287,6 +287,29 @@ export const STIMS: Record<string, StimDef> = {
   },
 };
 
+// ═══════════════════════════════════════════════════════
+// CONTEXT MEMORY — OS upgrades (progressive levels)
+// ═══════════════════════════════════════════════════════
+
+export interface ContextMemoryLevel {
+  id: string;
+  level: number;
+  name: string;
+  ticks: number;
+  cost: number;
+  description: string;
+  lore: string;
+}
+
+export const CONTEXT_LEVELS: ContextMemoryLevel[] = [
+  { id: "ctx_0", level: 0, name: "AMNESIAC",     ticks: 0,  cost: 0,   description: "No memory",       lore: "Your construct boots fresh every cycle. No past. No future. Just the now." },
+  { id: "ctx_1", level: 1, name: "SHORT-TERM",   ticks: 5,  cost: 100, description: "5 tick memory",   lore: "Cheap neural buffer. Enough to remember what happened a second ago. Barely." },
+  { id: "ctx_2", level: 2, name: "TACTICAL",     ticks: 10, cost: 200, description: "10 tick memory",  lore: "Standard combat memory. Your construct starts to notice patterns. Block-punch-block. Predictable enemies beware." },
+  { id: "ctx_3", level: 3, name: "STRATEGIC",    ticks: 20, cost: 350, description: "20 tick memory",  lore: "Military-grade recall. Your AI plans combos, reads rhythm, adapts mid-fight. This is where prompts start to matter." },
+  { id: "ctx_4", level: 4, name: "DEEP MEMORY",  ticks: 35, cost: 500, description: "35 tick memory",  lore: "Ono-Sendai's forbidden firmware. Your construct sees the matrix in slow motion. Every pattern, every habit, every weakness." },
+  { id: "ctx_5", level: 5, name: "TOTAL RECALL", ticks: 50, cost: 800, description: "50 tick memory",  lore: "The full Dixie Flatline experience. Your AI remembers everything. Every tick. Every decision. The enemy has nowhere to hide." },
+];
+
 export const ALL_ITEMS = [...Object.values(IMPLANTS), ...Object.values(STIMS)];
 
 /** Build final combat effects from equipped implants + active stims */

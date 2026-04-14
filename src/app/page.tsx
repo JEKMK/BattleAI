@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { RunnerCustomizer } from "@/components/runner-customizer";
 import { RipperTerminal } from "@/components/ripper-terminal";
-import { getLoadoutIcons } from "@/lib/implants";
+import { getLoadoutIcons, CONTEXT_LEVELS } from "@/lib/implants";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
 import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
@@ -175,6 +175,7 @@ export default function Home() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [lastDebug, setLastDebug] = useState<TickDebug | null>(null);
+  const [tickDecisions, setTickDecisions] = useState<Record<number, { red?: { move: string; action: string }; blue?: { move: string; action: string } }>>({});
   const [isFighting, setIsFighting] = useState(false);
   const [crackedPrompt, setCrackedPrompt] = useState<string | null>(null);
   const [showCracked, setShowCracked] = useState(false);
@@ -207,6 +208,7 @@ export default function Home() {
   const [runnerCredits, setRunnerCredits] = useState(0);
   const [equippedImplants, setEquippedImplants] = useState<string[]>([]);
   const [activeStims, setActiveStims] = useState<string[]>([]);
+  const [contextLevel, setContextLevel] = useState(0);
   const [runnerShape, setRunnerShape] = useState<RunnerShape>("diamond");
   const [runnerColor, setRunnerColor] = useState("#00f0ff");
   // PVP state
@@ -308,6 +310,7 @@ export default function Home() {
         .then((r) => r.json())
         .then((data) => {
           if (data.credits != null) setRunnerCredits(data.credits);
+          if (data.contextLevel != null) setContextLevel(data.contextLevel);
           if (data.implants) setEquippedImplants(data.implants.map((i: { implantId: string }) => i.implantId));
           if (data.stims) setActiveStims(data.stims.map((s: { stimId: string }) => s.stimId));
         })
@@ -477,6 +480,7 @@ export default function Home() {
     setGameState(null);
     setUsage(null);
     setLastDebug(null);
+    setTickDecisions({});
     setLastScore(0);
     abortRef.current = new AbortController();
 
@@ -503,6 +507,7 @@ export default function Home() {
       // Pass RPG loadout to battle engine
       if (equippedImplants.length > 0) body.redImplants = equippedImplants;
       if (activeStims.length > 0) body.redStims = activeStims;
+      body.redContextWindow = CONTEXT_LEVELS[contextLevel]?.ticks ?? 0;
 
       const res = await fetch("/api/battle", {
         method: "POST",
@@ -533,7 +538,14 @@ export default function Home() {
               if (parsed._type === "usage") {
                 setUsage(parsed as UsageData);
               } else {
-                if (parsed._debug) setLastDebug(parsed._debug as TickDebug);
+                if (parsed._debug) {
+                  setLastDebug(parsed._debug as TickDebug);
+                  const dbg = parsed._debug as TickDebug;
+                  const tick = (parsed as GameState).tick;
+                  if (tick != null) {
+                    setTickDecisions((prev) => ({ ...prev, [tick]: { red: dbg.redAction, blue: dbg.blueAction } }));
+                  }
+                }
                 finalState = parsed as GameState;
                 setGameState(finalState);
               }
@@ -664,6 +676,7 @@ export default function Home() {
     setGameState(null);
     setUsage(null);
     setLastDebug(null);
+    setTickDecisions({});
     setLastScore(0);
     abortRef.current = new AbortController();
 
@@ -710,7 +723,14 @@ export default function Home() {
                 // Update local street cred
                 setStreetCred((c) => c + parsed.attackerCredChange);
               } else {
-                if (parsed._debug) setLastDebug(parsed._debug as TickDebug);
+                if (parsed._debug) {
+                  setLastDebug(parsed._debug as TickDebug);
+                  const dbg = parsed._debug as TickDebug;
+                  const tick = (parsed as GameState).tick;
+                  if (tick != null) {
+                    setTickDecisions((prev) => ({ ...prev, [tick]: { red: dbg.redAction, blue: dbg.blueAction } }));
+                  }
+                }
                 setGameState(parsed as GameState);
               }
             } catch { /* skip */ }
@@ -1417,7 +1437,7 @@ export default function Home() {
         {/* Right Panel — Intrusion Log */}
         <div key={`right-${flickerKey}`} className={`hidden lg:flex w-80 shrink-0 flex-col border-l border-border bg-bg-panel overflow-hidden transition-all duration-500 ${spotlightPrompt ? "opacity-10" : ""} ${!uiVisible ? "invisible" : ""}`} style={flickerKey > 0 ? { animation: "flicker-in 0.5s ease-out 0.3s forwards, glow-surge 0.8s ease-out 0.8s" } : undefined}>
           <div className="flex-1 min-h-0">
-            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} redImplants={equippedImplants} redStims={activeStims} />
+            <CombatLog logs={gameState?.log ?? []} simplified={showGauntlet && gauntlet.currentLevel < TUTORIAL_COUNT} redImplants={equippedImplants} redStims={activeStims} decisions={tickDecisions} contextWindow={CONTEXT_LEVELS[contextLevel]?.ticks ?? 0} />
           </div>
         </div>
         {/* Notification cards — bottom right */}
@@ -1457,6 +1477,7 @@ export default function Home() {
           runnerToken={runnerToken}
           onLoadoutChange={(loadout) => {
             setRunnerCredits(loadout.credits);
+            if (loadout.contextLevel != null) setContextLevel(loadout.contextLevel);
             setEquippedImplants(loadout.implants.map((i) => i.implantId));
             setActiveStims(loadout.stims.map((s) => s.stimId));
           }}

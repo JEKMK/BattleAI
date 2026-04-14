@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { IMPLANTS, STIMS, buildCombatEffects, BASE_EFFECTS, type ImplantDef, type StimDef } from "@/lib/implants";
+import { IMPLANTS, STIMS, CONTEXT_LEVELS, buildCombatEffects, BASE_EFFECTS, type ImplantDef, type StimDef } from "@/lib/implants";
 
 interface Loadout {
   credits: number;
+  contextLevel: number;
   implants: { implantId: string; slotType: string }[];
   stims: { stimId: string }[];
 }
@@ -17,7 +18,7 @@ interface RipperTerminalProps {
 }
 
 type SortMode = "price-asc" | "price-desc" | "name";
-type FilterMode = "all" | "neural" | "cyberware" | "stim";
+type FilterMode = "all" | "neural" | "cyberware" | "stim" | "os";
 
 export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: RipperTerminalProps) {
   const [loadout, setLoadout] = useState<Loadout | null>(null);
@@ -45,7 +46,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const buy = useCallback(async (itemId: string, type: "implant" | "stim") => {
+  const buy = useCallback(async (itemId: string, type: "implant" | "stim" | "os") => {
     if (!runnerToken || buying) return;
     setBuying(itemId);
     setSysopMsg(null);
@@ -59,7 +60,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
       if (res.ok) {
         setSysopMsg(data.message);
         await fetchLoadout();
-        if (loadout) onLoadoutChange?.({ ...loadout, credits: data.credits });
+        if (loadout) onLoadoutChange?.({ ...loadout, credits: data.credits, contextLevel: data.contextLevel ?? loadout.contextLevel });
       } else {
         setSysopMsg(data.error || "Transaction failed.");
       }
@@ -84,6 +85,8 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
   if (filter === "all" || filter === "stim") {
     Object.values(STIMS).forEach((item) => allItems.push({ item, type: "stim" }));
   }
+  // OS context levels — render as special cards
+  const showOs = filter === "all" || filter === "os";
 
   allItems.sort((a, b) => {
     if (sort === "price-asc") return a.item.cost - b.item.cost;
@@ -209,7 +212,7 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
                     {/* Controls */}
                     <div className="flex items-center justify-between mb-2 shrink-0 gap-2 flex-wrap">
                       <div className="flex gap-1">
-                        {([["all", "ALL"], ["neural", "🧠"], ["cyberware", "🦾"], ["stim", "💊"]] as const).map(([key, label]) => (
+                        {([["all", "ALL"], ["neural", "🧠"], ["cyberware", "🦾"], ["stim", "💊"], ["os", "💻 OS"]] as const).map(([key, label]) => (
                           <button key={key} onClick={() => setFilter(key)}
                             className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
                               filter === key ? "border-magenta text-magenta bg-magenta/10" : "border-border text-text-dim hover:text-text-secondary"
@@ -271,6 +274,48 @@ export function RipperTerminal({ onClose, runnerToken, onLoadoutChange }: Ripper
                                         : "border-border text-text-dim cursor-not-allowed"
                                     }`}>
                                     {buying === item.id ? "..." : "BUY"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* OS Context Memory levels */}
+                        {showOs && CONTEXT_LEVELS.filter((l) => l.level > 0).map((level) => {
+                          const isCurrent = level.level === (loadout?.contextLevel ?? 0);
+                          const isLower = level.level < (loadout?.contextLevel ?? 0);
+                          const canAfford = (loadout?.credits ?? 0) >= level.cost;
+                          return (
+                            <div key={level.id}
+                              className={`group border rounded-sm p-2 transition-all cursor-default ${
+                                isCurrent ? "border-neon-green/30 bg-neon-green/5" : isLower ? "border-border opacity-40" : "border-border hover:border-border-bright"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-xs font-mono font-bold truncate" style={{ color: isCurrent ? "#39ff14" : "#00f0ff" }}>
+                                  💻 {level.name}
+                                </span>
+                                <span title={level.lore}
+                                  className="text-text-dim text-xs border border-text-dim/30 rounded-full w-3.5 h-3.5 flex items-center justify-center cursor-help hover:text-cyan hover:border-cyan/50 transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-1">
+                                  ?
+                                </span>
+                              </div>
+                              <div className="text-text-secondary text-xs font-mono mb-1">{level.description}</div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-amber text-xs font-mono font-bold">¤{level.cost}</span>
+                                {isCurrent ? (
+                                  <span className="text-neon-green text-xs font-mono">CURRENT</span>
+                                ) : isLower ? (
+                                  <span className="text-text-dim text-xs font-mono">OWNED</span>
+                                ) : (
+                                  <button onClick={() => buy(level.id, "os")} disabled={!canAfford || buying === level.id}
+                                    className={`text-xs font-mono px-2 py-0.5 rounded-sm border transition-all ${
+                                      canAfford && buying !== level.id
+                                        ? "border-neon-green text-neon-green hover:bg-neon-green/10"
+                                        : "border-border text-text-dim cursor-not-allowed"
+                                    }`}>
+                                    {buying === level.id ? "..." : "UPGRADE"}
                                   </button>
                                 )}
                               </div>

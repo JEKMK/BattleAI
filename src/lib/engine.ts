@@ -413,10 +413,11 @@ export function resolveTick(
   return next;
 }
 
-export function buildTickInput(state: GameState, fighterId: "red" | "blue", allowedActions?: string[]): string {
+export function buildTickInput(state: GameState, fighterId: "red" | "blue", allowedActions?: string[], contextWindow?: number): string {
   const me = state.fighters[fighterId === "red" ? 0 : 1];
   const enemy = state.fighters[fighterId === "red" ? 1 : 0];
-  const recentLogs = state.log.slice(-10);
+  const ctx = contextWindow ?? 10; // default 10 for backwards compat
+  const recentLogs = ctx > 0 ? state.log.slice(-ctx) : [];
 
   const dist = Math.abs(me.x - enemy.x) + Math.abs(me.y - enemy.y);
 

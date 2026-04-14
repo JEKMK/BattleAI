@@ -1,14 +1,14 @@
 import { db } from "@/lib/db";
 import { runners, runnerImplants, runnerStims } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { IMPLANTS, STIMS } from "@/lib/implants";
+import { IMPLANTS, STIMS, CONTEXT_LEVELS } from "@/lib/implants";
 
 export async function POST(req: Request) {
   try {
     const token = req.headers.get("x-runner-token");
     if (!token) return Response.json({ error: "Missing token" }, { status: 401 });
 
-    const { itemId, type } = await req.json() as { itemId: string; type: "implant" | "stim" };
+    const { itemId, type } = await req.json() as { itemId: string; type: "implant" | "stim" | "os" };
 
     const runner = await db.query.runners.findFirst({ where: eq(runners.token, token) });
     if (!runner) return Response.json({ error: "Runner not found" }, { status: 404 });
@@ -70,6 +70,24 @@ export async function POST(req: Request) {
         ok: true,
         credits: runner.credits - stim.cost,
         message: `${stim.name} loaded. ${stim.description}.`,
+      });
+    } else if (type === "os") {
+      const level = CONTEXT_LEVELS.find((l) => l.id === itemId);
+      if (!level) return Response.json({ error: "Unknown OS level" }, { status: 400 });
+      if (level.level <= runner.contextLevel) return Response.json({ error: "Already at this level or higher" }, { status: 400 });
+      if (runner.credits < level.cost) return Response.json({ error: "Not enough credits" }, { status: 400 });
+
+      await db.update(runners).set({
+        contextLevel: level.level,
+        credits: runner.credits - level.cost,
+        updatedAt: new Date(),
+      }).where(eq(runners.id, runner.id));
+
+      return Response.json({
+        ok: true,
+        credits: runner.credits - level.cost,
+        contextLevel: level.level,
+        message: `${level.name} installed. ${level.description}.`,
       });
     }
 

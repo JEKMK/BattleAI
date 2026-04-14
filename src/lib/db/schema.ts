@@ -21,8 +21,9 @@ export const runners = pgTable("runners", {
   pvpWins: integer("pvp_wins").notNull().default(0),
   pvpLosses: integer("pvp_losses").notNull().default(0),
   lastHackedAt: timestamp("last_hacked_at", { withTimezone: true }),
-  // Economy
+  // Economy + AI
   credits: integer("credits").notNull().default(0),
+  contextLevel: integer("context_level").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
