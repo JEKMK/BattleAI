@@ -15,6 +15,7 @@ export async function GET(req: Request) {
         losses: runners.losses,
         draws: runners.draws,
         ram: runners.ram,
+        credits: runners.credits,
         currentLevel: runners.currentLevel,
         bestScoreDate: runners.bestScoreDate,
       })

@@ -14,6 +14,7 @@ interface RunnerRow {
   losses: number;
   draws: number;
   ram: number;
+  credits: number;
   currentLevel: number;
   bestScoreDate: string | null;
 }
@@ -129,6 +130,7 @@ export function LeaderboardTerminal({ onClose, runnerName, playerFaction }: Lead
                       <th className="px-3 py-2 text-right">Score</th>
                       <th className="px-3 py-2 text-center hidden sm:table-cell">W/D/L</th>
                       <th className="px-3 py-2 text-right hidden sm:table-cell">RAM</th>
+                      <th className="px-3 py-2 text-right hidden sm:table-cell">¤</th>
                       <th className="px-3 py-2 text-right hidden md:table-cell">LVL</th>
                       <th className="px-3 py-2 text-right hidden md:table-cell">Date</th>
                     </tr>
@@ -165,6 +167,9 @@ export function LeaderboardTerminal({ onClose, runnerName, playerFaction }: Lead
                           </td>
                           <td className="px-3 py-1.5 text-right hidden sm:table-cell text-cyan tabular-nums">
                             {r.ram}
+                          </td>
+                          <td className="px-3 py-1.5 text-right hidden sm:table-cell text-amber tabular-nums">
+                            {r.credits?.toLocaleString() ?? 0}
                           </td>
                           <td className="px-3 py-1.5 text-right hidden md:table-cell text-text-secondary tabular-nums">
                             {Math.max(0, r.currentLevel - TUTORIAL_COUNT)}
