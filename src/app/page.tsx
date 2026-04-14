@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Arena } from "@/components/arena";
 import { RunnerCustomizer } from "@/components/runner-customizer";
+import { RipperTerminal } from "@/components/ripper-terminal";
+import { getLoadoutIcons } from "@/lib/implants";
 import { CombatLog } from "@/components/combat-log";
 import { SysopReport } from "@/components/sysop-report";
 import { SysopTerminal, type OnboardingResult } from "@/components/sysop-terminal";
@@ -201,6 +203,10 @@ export default function Home() {
   const [runnerToken, setRunnerToken] = useState<string | null>(null);
   const [runnerRank, setRunnerRank] = useState<{ rank: number; total: number } | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showRipper, setShowRipper] = useState(false);
+  const [runnerCredits, setRunnerCredits] = useState(0);
+  const [equippedImplants, setEquippedImplants] = useState<string[]>([]);
+  const [activeStims, setActiveStims] = useState<string[]>([]);
   const [runnerShape, setRunnerShape] = useState<RunnerShape>("diamond");
   const [runnerColor, setRunnerColor] = useState("#00f0ff");
   // PVP state
@@ -294,6 +300,18 @@ export default function Home() {
     if (localStorage.getItem("battleai_pvp_unlocked") || (parsedGauntlet && (parsedGauntlet.currentLevel ?? 0) >= 2)) {
       localStorage.setItem("battleai_pvp_unlocked", "1");
       setPvpUnlocked(true);
+    }
+
+    // Load runner loadout (implants/stims/credits)
+    if (token) {
+      fetch("/api/ripper/loadout", { headers: { "x-runner-token": token } })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.credits != null) setRunnerCredits(data.credits);
+          if (data.implants) setEquippedImplants(data.implants.map((i: { implantId: string }) => i.implantId));
+          if (data.stims) setActiveStims(data.stims.map((s: { stimId: string }) => s.stimId));
+        })
+        .catch(() => {});
     }
 
     setShowGauntlet(true);
@@ -481,6 +499,10 @@ export default function Home() {
         body.botType = "balanced";
         body.botFaction = "openai";
       }
+
+      // Pass RPG loadout to battle engine
+      if (equippedImplants.length > 0) body.redImplants = equippedImplants;
+      if (activeStims.length > 0) body.redStims = activeStims;
 
       const res = await fetch("/api/battle", {
         method: "POST",
@@ -779,11 +801,18 @@ export default function Home() {
           <button onClick={() => setShowLeaderboard(true)} className="text-xs font-mono text-amber/50 hover:text-amber transition-colors">
             RANKING
           </button>
+          <button onClick={() => setShowRipper(true)} className="text-xs font-mono text-magenta/50 hover:text-magenta transition-colors">
+            RIPPER
+          </button>
         </div>
         <div className="flex items-center gap-2 lg:gap-4 font-mono text-xs">
           {runnerName && (
             <>
               <span className="text-neon-green font-bold">{runnerName}</span>
+              {(equippedImplants.length > 0 || activeStims.length > 0) && (
+                <span className="hidden lg:inline text-xs">{getLoadoutIcons(equippedImplants, activeStims)}</span>
+              )}
+              <span className="text-amber font-bold hidden lg:inline">¤{runnerCredits}</span>
               <div className="h-3 w-px bg-border hidden lg:block" />
             </>
           )}
@@ -1411,6 +1440,19 @@ export default function Home() {
           onClose={() => setShowLeaderboard(false)}
           runnerName={runnerName}
           playerFaction={faction}
+        />
+      )}
+
+      {/* RipperDoc Terminal */}
+      {showRipper && (
+        <RipperTerminal
+          onClose={() => setShowRipper(false)}
+          runnerToken={runnerToken}
+          onLoadoutChange={(loadout) => {
+            setRunnerCredits(loadout.credits);
+            setEquippedImplants(loadout.implants.map((i) => i.implantId));
+            setActiveStims(loadout.stims.map((s) => s.stimId));
+          }}
         />
       )}
 

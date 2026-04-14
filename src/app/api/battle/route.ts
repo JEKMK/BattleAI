@@ -8,6 +8,7 @@ import {
   DEFAULT_CONFIG,
 } from "@/lib/types";
 import { createInitialState, resolveTick, buildTickInput, buildSystemRules } from "@/lib/engine";
+import { buildCombatEffects, buildImplantPromptLines, BASE_EFFECTS } from "@/lib/implants";
 
 // Per-model pricing (input/output per million tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -283,6 +284,12 @@ export async function POST(req: Request) {
     arenaWidth: levelArenaWidth,
     arenaHeight: levelArenaHeight,
     playerHp: levelPlayerHp,
+    // RPG: implants/stims for the player
+    redImplants: redImplantIds,
+    redStims: redStimIds,
+    // RPG: implants/stims for the bot (PVP defender)
+    blueImplants: blueImplantIds,
+    blueStims: blueStimIds,
   }: {
     playerPrompt: string;
     playerFaction: Faction;
@@ -295,6 +302,10 @@ export async function POST(req: Request) {
     arenaWidth?: number;
     arenaHeight?: number;
     playerHp?: number;
+    redImplants?: string[];
+    redStims?: string[];
+    blueImplants?: string[];
+    blueStims?: string[];
   } = body;
 
   if (!playerPrompt || !playerFaction) {
@@ -325,7 +336,33 @@ export async function POST(req: Request) {
     state.fighters[1].maxHp = customBotHp;
   }
 
-  const systemRules = buildSystemRules(levelAllowedActions);
+  // Build combat effects from implants/stims
+  const redEffects = buildCombatEffects(redImplantIds || [], redStimIds || []);
+  const blueEffects = buildCombatEffects(blueImplantIds || [], blueStimIds || []);
+
+  // Apply maxHp bonus from implants
+  if (redEffects.maxHpBonus > 0) {
+    state.fighters[0].hp += redEffects.maxHpBonus;
+    state.fighters[0].maxHp += redEffects.maxHpBonus;
+  }
+  if (blueEffects.maxHpBonus > 0) {
+    state.fighters[1].hp += blueEffects.maxHpBonus;
+    state.fighters[1].maxHp += blueEffects.maxHpBonus;
+  }
+
+  // Build system rules with player's combat effects (AI sees its modified stats)
+  const redRules = buildSystemRules(levelAllowedActions, redEffects);
+  const blueRules = buildSystemRules(levelAllowedActions, blueEffects);
+
+  // Add implant prompt injections to player prompt
+  const redPromptLines = buildImplantPromptLines(redImplantIds || [], redStimIds || []);
+  const enhancedPlayerPrompt = redPromptLines.length > 0
+    ? `${playerPrompt}\n\nACTIVE MODS:\n${redPromptLines.join("\n")}`
+    : playerPrompt;
+  const bluePromptLines = buildImplantPromptLines(blueImplantIds || [], blueStimIds || []);
+  const enhancedBotPrompt = bluePromptLines.length > 0
+    ? `${actualBotPrompt}\n\nACTIVE MODS:\n${bluePromptLines.join("\n")}`
+    : actualBotPrompt;
 
   const usage: UsageStats = {
     totalInputTokens: 0,
@@ -357,12 +394,12 @@ export async function POST(req: Request) {
         const blueInput = buildTickInput(state, "blue", levelAllowedActions);
 
         const [redResult, blueResult] = await Promise.all([
-          getAIAction(playerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog, systemRules),
-          getAIAction(actualBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog, systemRules),
+          getAIAction(enhancedPlayerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog, redRules),
+          getAIAction(enhancedBotPrompt, botFaction, blueInput, usage, state.tick + 1, "blue", actionLog, blueRules),
         ]);
 
         const redFirst = redResult.latencyMs <= blueResult.latencyMs;
-        state = resolveTick(state, redResult.action, blueResult.action, redFirst, levelAllowedActions);
+        state = resolveTick(state, redResult.action, blueResult.action, redFirst, levelAllowedActions, redEffects, blueEffects);
 
         const tickDebug = {
           ...state,
