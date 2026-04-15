@@ -1253,7 +1253,10 @@ export default function Home() {
           )}
 
           {/* Arena */}
-          <div className="relative">
+          <div className="w-full relative" style={{ height: "75vh" }}>
+            {/* Cinematic letterbox bars */}
+            <div className="absolute top-0 left-0 right-0 h-6 bg-black z-10" />
+            <div className="absolute bottom-0 left-0 right-0 h-6 bg-black z-10" />
             <Arena3D state={gameState}
               redCosmetic={{ shape: runnerShape, color: runnerColor }}
             />
