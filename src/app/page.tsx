@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Arena } from "@/components/arena";
+import dynamic from "next/dynamic";
+const Arena3D = dynamic(() => import("@/components/arena3d").then(m => ({ default: m.Arena3D })), { ssr: false });
 import { audioEngine } from "@/lib/audio";
 import { RunnerCustomizer } from "@/components/runner-customizer";
 import { RipperTerminal } from "@/components/ripper-terminal";
@@ -1253,7 +1254,7 @@ export default function Home() {
 
           {/* Arena */}
           <div className="relative">
-            <Arena state={gameState}
+            <Arena3D state={gameState}
               redCosmetic={{ shape: runnerShape, color: runnerColor }}
             />
             <AnimatePresence>
