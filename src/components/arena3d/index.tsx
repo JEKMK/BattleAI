@@ -10,6 +10,7 @@ import { Fighter3D } from "./fighter-3d";
 import { Particles3D, spawnParticles3D } from "./particles-3d";
 import { Projectiles3D, spawnBeam } from "./projectiles-3d";
 import { Effects } from "./effects";
+import { MatrixRain, LightWisps, DataColumns, GroundGrid } from "./atmosphere";
 import { gridToWorld } from "./utils";
 import { audioEngine } from "@/lib/audio";
 
@@ -129,8 +130,15 @@ export function Arena3D({ state, redCosmetic, blueCosmetic }: Arena3DProps) {
 
           <Particles3D />
           <Projectiles3D />
+
+          {/* Cyberspace atmosphere */}
+          <MatrixRain />
+          <LightWisps />
+          <DataColumns />
+          <GroundGrid />
+
           <Effects />
-          <fog attach="fog" args={["#050510", 10, 30]} />
+          <fog attach="fog" args={["#030308", 8, 28]} />
         </Suspense>
       </Canvas>
     </div>
