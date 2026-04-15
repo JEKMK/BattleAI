@@ -25,7 +25,7 @@ export interface Particle {
   color: string;
   size: number;
   rotation?: number;
-  isFragment?: boolean; // data fragment (rectangle instead of square)
+  isFragment?: boolean;
 }
 
 export interface Projectile {
@@ -55,12 +55,14 @@ export interface DataRainColumn {
   offset: number;
 }
 
-// Hex grid constants
-export const HEX_W = 52;
-export const HEX_H = 46;
-export const HEX_OVERLAP = 0.75;
-export const PADDING = 10;
-export const TOP_OFFSET = 24; // space above grid for labels
+// Isometric tile dimensions
+// Standard iso ratio: width = 2 * height
+export const TILE_W = 64;          // horizontal span of one iso tile
+export const TILE_H = 32;          // vertical span (half of width = iso standard)
+export const PADDING = 20;
+export const TOP_OFFSET = 30;      // space above grid
+export const FIGHTER_ELEVATION = 18; // fighters "float" above tile — more = more 3D
+export const SHADOW_OFFSET_Y = 8;   // shadow below on the tile surface
 
 export const FACTION_COLORS: Record<string, string> = {
   anthropic: "#b44aff",

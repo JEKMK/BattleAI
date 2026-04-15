@@ -1,28 +1,45 @@
 import type { RunnerShape } from "@/lib/types";
-import { HEX_W, HEX_H, HEX_OVERLAP, PADDING, TOP_OFFSET } from "./types";
+import { TILE_W, TILE_H, PADDING, TOP_OFFSET } from "./types";
 
-/** Convert grid (x, y) to screen pixel coords (center of hex) */
-export function toHex(gridX: number, gridY: number, arenaW: number, arenaH: number, canvasW: number): [number, number] {
-  const gridPixelW = arenaW * HEX_W;
-  const gridPixelH = arenaH * (HEX_H * HEX_OVERLAP) + HEX_H * (1 - HEX_OVERLAP);
-  const offsetX = (canvasW - gridPixelW) / 2;
-  const rowOffset = gridY % 2 === 1 ? HEX_W / 2 : 0;
-  const sx = gridX * HEX_W + rowOffset + offsetX + HEX_W / 2;
-  const sy = gridY * (HEX_H * HEX_OVERLAP) + PADDING + TOP_OFFSET + HEX_H / 2;
-  return [sx, sy];
+/**
+ * Isometric projection: convert grid (x, y) to screen pixel coords.
+ *
+ * Standard isometric: rotate 45° then squash Y by 50%.
+ *   screenX = (gridX - gridY) * tileW/2
+ *   screenY = (gridX + gridY) * tileH/2
+ *
+ * This makes the grid look like a diamond viewed from ~30° angle.
+ */
+export function toIso(
+  gridX: number,
+  gridY: number,
+  arenaW: number,
+  arenaH: number,
+  canvasW: number,
+  canvasH: number,
+): [number, number] {
+  // Center the iso grid in the canvas
+  const centerX = canvasW / 2;
+  const centerY = TOP_OFFSET + (arenaH * TILE_H) / 2 + PADDING;
+
+  const isoX = (gridX - gridY) * (TILE_W / 2) + centerX;
+  const isoY = (gridX + gridY) * (TILE_H / 2) + centerY - (arenaW * TILE_H) / 2;
+
+  return [isoX, isoY];
 }
 
-/** Draw a flat-top hexagon path centered at (cx, cy) */
-export function hexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r?: number) {
-  const radius = r ?? HEX_H / 2;
+/**
+ * Draw an isometric diamond tile (flat rhombus) centered at (cx, cy).
+ * This is the standard iso tile shape.
+ */
+export function isoTilePath(ctx: CanvasRenderingContext2D, cx: number, cy: number, w = TILE_W, h = TILE_H) {
+  const hw = w / 2;
+  const hh = h / 2;
   ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i; // flat-top: start at 0°
-    const px = cx + radius * Math.cos(angle);
-    const py = cy + radius * Math.sin(angle);
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
+  ctx.moveTo(cx, cy - hh);      // top
+  ctx.lineTo(cx + hw, cy);      // right
+  ctx.lineTo(cx, cy + hh);      // bottom
+  ctx.lineTo(cx - hw, cy);      // left
   ctx.closePath();
 }
 
@@ -81,19 +98,15 @@ export function drawShape(ctx: CanvasRenderingContext2D, shape: RunnerShape, cx:
       break;
     case "square":
     default:
-      ctx.rect(cx - r, cy - r, r * 2, r * 2);
+      // Square renders as diamond in iso (rotated 45°)
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
       break;
   }
   ctx.closePath();
   ctx.fill();
-}
-
-/** Draw shape as stroke only */
-export function strokeShape(ctx: CanvasRenderingContext2D, shape: RunnerShape, cx: number, cy: number, r: number) {
-  ctx.beginPath();
-  // Same path as drawShape but stroke instead of fill
-  drawShape(ctx, shape, cx, cy, r);
-  ctx.stroke();
 }
 
 export function lerp(a: number, b: number, t: number): number {
@@ -104,9 +117,11 @@ export function distance(a: { x: number; y: number }, b: { x: number; y: number 
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-/** Canvas dimensions for a given arena size */
+/** Canvas dimensions for a given arena size in isometric projection */
 export function getCanvasDimensions(arenaW: number, arenaH: number) {
-  const w = Math.max(arenaW * HEX_W + PADDING * 2, 500);
-  const h = arenaH * (HEX_H * HEX_OVERLAP) + HEX_H * (1 - HEX_OVERLAP) + TOP_OFFSET + PADDING * 2;
-  return { width: Math.ceil(w), height: Math.ceil(h) };
+  // Iso diamond: total width = (arenaW + arenaH) * TILE_W/2
+  // total height = (arenaW + arenaH) * TILE_H/2
+  const isoW = (arenaW + arenaH) * (TILE_W / 2) + PADDING * 2;
+  const isoH = (arenaW + arenaH) * (TILE_H / 2) + TOP_OFFSET + PADDING * 2 + 30; // extra for labels/text
+  return { width: Math.ceil(isoW), height: Math.ceil(isoH) };
 }
