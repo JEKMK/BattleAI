@@ -14,7 +14,7 @@ Canvas 2D cannot do real perspective, lighting, or shadows. We spent hours fakin
 
 ## Scope — NOW
 - Replace Canvas 2D arena renderer with Three.js + @react-three/fiber
-- Isometric camera (OrthographicCamera at 45° angle)
+- Free 3D camera with OrbitControls (rotate, zoom, pan — like an RTS)
 - Hex/diamond grid as 3D tile meshes with emissive edges
 - Fighter shapes as 3D extruded geometries (real volume, real shadows)
 - Dynamic point lights per fighter (color = faction/cosmetic)

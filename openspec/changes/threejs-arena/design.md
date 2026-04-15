@@ -30,22 +30,34 @@ GameState (from engine.ts)
 └────────────────────────────────────┘
 ```
 
-## Camera: Isometric Orthographic
+## Camera: Free 3D with OrbitControls
 
 ```typescript
-// OrthographicCamera at classic iso angle
-<OrthographicCamera
+// PerspectiveCamera — real 3D depth
+<PerspectiveCamera
   makeDefault
-  position={[10, 10, 10]}
-  zoom={40}
+  position={[8, 8, 8]}   // start at classic iso-ish angle
+  fov={50}
   near={0.1}
-  far={1000}
+  far={100}
 />
-// Camera looks at center of grid
-// Rotation: 45° Y + 35.264° X (true isometric)
+
+// OrbitControls — player can rotate, zoom, pan
+<OrbitControls
+  target={[0, 0, 0]}       // look at grid center
+  minDistance={4}           // can't zoom inside the grid
+  maxDistance={20}          // can't zoom too far out
+  maxPolarAngle={Math.PI / 2.2}  // can't go below ground
+  minPolarAngle={0.3}      // can't go full top-down
+  enablePan={true}          // drag to move
+  enableDamping={true}      // smooth camera movement
+  dampingFactor={0.08}
+/>
 ```
 
-Orthographic (not perspective) gives the classic isometric look where distant objects are the same size as near objects. Zoom adjusts to fit arena.
+PerspectiveCamera (not Orthographic) gives real 3D depth — close objects larger, far objects smaller. OrbitControls lets the player explore the arena like a strategy game. Default angle is ~45° but player can rotate freely.
+
+Mobile: touch to rotate (1 finger), pinch to zoom (2 fingers), two-finger drag to pan.
 
 ## Grid: 3D Hex Tiles
 
@@ -234,7 +246,7 @@ Optional: SpotLight on action target during attacks
 ```
 src/components/arena3d/
 ├── index.tsx           — main <Canvas> wrapper + state management
-├── iso-camera.tsx      — OrthographicCamera setup
+├── camera.tsx          — PerspectiveCamera + OrbitControls
 ├── hex-grid.tsx        — InstancedMesh tile grid
 ├── fighter-3d.tsx      — 3D fighter mesh + animations
 ├── projectiles-3d.tsx  — beam/trail meshes
