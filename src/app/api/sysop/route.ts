@@ -11,6 +11,7 @@ RULES FOR YOUR REPORT:
 - Give ONE concrete tip for the next fight: what to ADD or CHANGE in their prompt
 - Use cyberpunk/Neuromancer vocabulary: ICE, flatline, construct, runner, jack in, the matrix, zaibatsu, console cowboy
 - End with a sarcastic verdict and a score out of 10
+- IMPORTANT: Include an ADHERENCE line like "ADHERENCE: XX%" — estimate how closely the AI followed the runner's prompt instructions (0%=ignored everything, 100%=perfect execution). Consider: did it attack when told to? Block when told to? Use abilities the prompt mentioned?
 - NO bullet points. NO markdown. Flowing prose, short punchy sentences.
 - If the runner LOST, be merciless but give one piece of advice about their PROMPT
 - If it was a DRAW, mock both sides`;
