@@ -38,8 +38,8 @@
 - [x] Mark results as seen after display
 
 ## Bloque 7 — PVP Unlock (~5 min AI)
-- [x] Trigger SYSOP message after tutorial complete (level 5)
-- [ ] One-time terminal explaining PVP concept
+- [x] Trigger after level 2+ (lowered from 5 for testing)
+- [ ] One-time SYSOP terminal explaining PVP concept
 - [x] [PVP] tab glow pulse on first appearance
 - [x] localStorage flag: battleai_pvp_unlocked
 
@@ -50,7 +50,7 @@
 - [x] Street Cred display in header (alongside score)
 
 ## Test
-- [x] PVP unlock triggers after level 5
+- [x] PVP unlock triggers after level 2
 - [ ] Targets load within cred range
 - [ ] Battle runs with defender prompt
 - [ ] Win: cred up, RAM stolen, prompt revealed

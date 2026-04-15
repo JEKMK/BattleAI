@@ -36,7 +36,7 @@
 - [x] Tutorial SYSOP reports focus on teaching, not just narration
 
 ## Test
-- [ ] Fresh playthrough: tutorial levels appear, actions restricted correctly
-- [ ] Engine rejects disallowed actions gracefully
-- [ ] Post-tutorial: full gauntlet unlocks
-- [ ] Returning player: tutorial complete flag skips to full gauntlet
+- [x] Fresh playthrough: tutorial levels appear, actions restricted correctly
+- [x] Engine rejects disallowed actions gracefully
+- [x] Post-tutorial: full gauntlet unlocks
+- [x] Returning player: tutorial complete flag skips to full gauntlet

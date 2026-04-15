@@ -18,7 +18,7 @@
 - [x] Remove old name-related quickMode logic
 
 ## Test
-- [ ] Fresh user: sees explain → choice → write or help → battle starts
-- [ ] Returning user: sees Jack in? → straight to game
-- [ ] Portal user: skips everything
+- [x] Fresh user: sees explain → choice → write or help → battle starts
+- [x] Returning user: sees Jack in? → straight to game
+- [x] Portal user: skips everything
 - [ ] Mobile: flow works on small screen

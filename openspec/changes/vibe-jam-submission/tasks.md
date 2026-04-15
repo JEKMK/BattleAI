@@ -15,12 +15,12 @@
 - [x] Left panel hidden during battle on mobile, full width when visible
 
 ## Bloque 3 — Portal (~10 min AI)
-- [x] Exit portal: "VIBE JAM PORTAL" button after battle with username/ref/hp params (done in Bloque 1)
-- [x] Portal landing: ?portal=true sets all flags, skips onboarding, instant UI (done in Bloque 1)
+- [x] Exit portal: "VIBE JAM PORTAL" button after battle with username/ref/hp params
+- [x] Portal landing: ?portal=true sets all flags, skips onboarding, instant UI
 
 ## Bloque 4 — Polish (~15 min AI)
-- [ ] Custom domain: configure in Vercel (needs Kilian to confirm domain)
-- [ ] Screenshot: take a good one for submission
+- [x] Custom domain: battle-ai.space configured in Vercel
+- [x] Screenshot: taken for submission
+- [x] Test portal flow (simulate ?portal=true)
+- [x] Fill submission form — submitted to Vibe Jam 2026
 - [ ] Test mobile on real device
-- [ ] Test portal flow (simulate ?portal=true)
-- [ ] Fill submission form
