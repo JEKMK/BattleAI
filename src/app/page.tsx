@@ -1311,6 +1311,23 @@ export default function Home() {
             </div>
           )}
 
+          {/* Context Memory meter */}
+          {isFighting && gameState && (
+            <div className="w-full max-w-lg font-mono text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-text-dim">🧠</span>
+                <span className="text-cyan">{CONTEXT_LEVELS[contextLevel]?.name ?? "AMNESIAC"}</span>
+                <div className="flex-1 h-1 bg-bg-deep border border-border rounded-sm overflow-hidden">
+                  <div
+                    className="h-full bg-cyan/50 transition-all"
+                    style={{ width: `${CONTEXT_LEVELS[contextLevel]?.ticks ? Math.min(100, (gameState.tick / CONTEXT_LEVELS[contextLevel].ticks) * 100) : 0}%` }}
+                  />
+                </div>
+                <span className="text-text-dim tabular-nums">{Math.min(gameState.tick, CONTEXT_LEVELS[contextLevel]?.ticks ?? 0)}/{CONTEXT_LEVELS[contextLevel]?.ticks ?? 0}</span>
+              </div>
+            </div>
+          )}
+
           {/* Analytics — below arena (collapsed by default, click to expand) */}
           {usage?.analytics && (
             <div className="w-full max-w-lg font-mono text-xs">

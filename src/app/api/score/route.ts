@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { runners, battleResults } from "@/lib/db/schema";
+import { runners, battleResults, runnerStims } from "@/lib/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { calculateScore } from "@/lib/gauntlet";
 
@@ -70,6 +70,9 @@ export async function POST(req: Request) {
       enemyHpMax,
       faction,
     });
+
+    // Consume stims after battle (one-use)
+    await db.delete(runnerStims).where(eq(runnerStims.runnerId, runner.id));
 
     // Get rank
     const rankResult = await db

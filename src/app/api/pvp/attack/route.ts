@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
-import { runners, pvpResults } from "@/lib/db/schema";
+import { runners, pvpResults, runnerImplants, runnerStims } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { calculateCredChange } from "@/lib/pvp";
+import { CONTEXT_LEVELS } from "@/lib/implants";
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,14 @@ export async function POST(req: Request) {
       return Response.json({ error: "Defender has no defense prompt" }, { status: 400 });
     }
 
+    // Load attacker's implants/stims/context for battle
+    const attackerImplants = await db.select().from(runnerImplants).where(eq(runnerImplants.runnerId, attacker.id));
+    const attackerStims = await db.select().from(runnerStims).where(eq(runnerStims.runnerId, attacker.id));
+    const defenderImplants = await db.select().from(runnerImplants).where(eq(runnerImplants.runnerId, defender.id));
+
+    const attackerCtx = CONTEXT_LEVELS[attacker.contextLevel]?.ticks ?? 0;
+    const defenderCtx = CONTEXT_LEVELS[defender.contextLevel]?.ticks ?? 10;
+
     // Call the battle engine internally via fetch (reuse existing /api/battle)
     const battleBody = {
       playerPrompt,
@@ -38,7 +47,12 @@ export async function POST(req: Request) {
       botPrompt: defender.defensePrompt,
       botName: defender.name,
       botFaction: defender.defenseFaction,
-      botHp: 10, // Standard PVP HP
+      botHp: 10,
+      redImplants: attackerImplants.map((i) => i.implantId),
+      redStims: attackerStims.map((s) => s.stimId),
+      blueImplants: defenderImplants.map((i) => i.implantId),
+      redContextWindow: attackerCtx,
+      blueContextWindow: defenderCtx,
     };
 
     // Get the host from the request URL for internal fetch
@@ -114,16 +128,23 @@ export async function POST(req: Request) {
             defenderHp: lastGameState.fighters[1].hp,
           });
 
+          // Credit reward: win 50 + credGain*2, lose 10
+          const creditReward = attackerWon ? 50 + Math.abs(credChange.attackerGain) * 2 : 10;
+
           // Update attacker stats
           await db.update(runners)
             .set({
               streetCred: sql`${runners.streetCred} + ${credChange.attackerGain}`,
+              credits: sql`${runners.credits} + ${creditReward}`,
               pvpWins: attackerWon ? sql`${runners.pvpWins} + 1` : runners.pvpWins,
               pvpLosses: !attackerWon ? sql`${runners.pvpLosses} + 1` : runners.pvpLosses,
               ram: attackerWon ? sql`${runners.ram} + ${credChange.ramStolen}` : runners.ram,
               updatedAt: new Date(),
             })
             .where(eq(runners.id, attacker.id));
+
+          // Consume attacker stims (one-use)
+          await db.delete(runnerStims).where(eq(runnerStims.runnerId, attacker.id));
 
           // Update defender stats
           await db.update(runners)
