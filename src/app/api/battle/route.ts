@@ -290,6 +290,9 @@ export async function POST(req: Request) {
     // RPG: implants/stims for the bot (PVP defender)
     blueImplants: blueImplantIds,
     blueStims: blueStimIds,
+    // Context Memory
+    redContextWindow: redCtxWindow,
+    blueContextWindow: blueCtxWindow,
   }: {
     playerPrompt: string;
     playerFaction: Faction;
@@ -306,6 +309,8 @@ export async function POST(req: Request) {
     redStims?: string[];
     blueImplants?: string[];
     blueStims?: string[];
+    redContextWindow?: number;
+    blueContextWindow?: number;
   } = body;
 
   if (!playerPrompt || !playerFaction) {
@@ -390,8 +395,8 @@ export async function POST(req: Request) {
       controller.enqueue(encoder.encode(JSON.stringify(state) + "\n"));
 
       while (state.status === "fighting") {
-        const redInput = buildTickInput(state, "red", levelAllowedActions);
-        const blueInput = buildTickInput(state, "blue", levelAllowedActions);
+        const redInput = buildTickInput(state, "red", levelAllowedActions, redCtxWindow ?? 0);
+        const blueInput = buildTickInput(state, "blue", levelAllowedActions, blueCtxWindow ?? 10);
 
         const [redResult, blueResult] = await Promise.all([
           getAIAction(enhancedPlayerPrompt, playerFaction, redInput, usage, state.tick + 1, "red", actionLog, redRules),

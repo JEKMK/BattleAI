@@ -4,6 +4,11 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import type { LogEntry } from "@/lib/types";
 import { IMPLANTS, STIMS } from "@/lib/implants";
 
+interface TickDecision {
+  move: string;
+  action: string;
+}
+
 interface CombatLogProps {
   logs: LogEntry[];
   simplified?: boolean;
@@ -70,7 +75,7 @@ function getImplantMarker(msg: string, type: string, fighter: string, implants: 
   return icons.join("");
 }
 
-export function CombatLog({ logs, simplified = false, redImplants = [], redStims = [] }: CombatLogProps) {
+export function CombatLog({ logs, simplified = false, redImplants = [], redStims = [], decisions = {}, contextWindow = 0 }: CombatLogProps & { decisions?: Record<number, { red?: TickDecision; blue?: TickDecision }>; contextWindow?: number }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -112,8 +117,27 @@ export function CombatLog({ logs, simplified = false, redImplants = [], redStims
         {filtered.length === 0 && (
           <p className="text-text-dim text-center py-4 text-[10px]">// awaiting connection...</p>
         )}
-        {filtered.map((log, i) => (
-          <div key={i} className="flex gap-1.5 py-px">
+        {filtered.map((log, i) => {
+          // Show AI decision before first log of each tick (for player)
+          const prevTick = i > 0 ? filtered[i - 1].tick : -1;
+          const isNewTick = log.tick !== prevTick;
+          const tickDecision = isNewTick ? decisions[log.tick] : null;
+
+          return (
+          <div key={i}>
+            {tickDecision?.red && (
+              <div className="flex gap-1.5 py-px opacity-60">
+                <span className="text-text-dim w-6 shrink-0 text-right tabular-nums">
+                  {String(log.tick).padStart(3, "0")}
+                </span>
+                <span className="w-6 shrink-0 font-bold text-purple">[P]</span>
+                <span className="text-purple">
+                  → {tickDecision.red.move.toUpperCase()} + {tickDecision.red.action.toUpperCase()}
+                  {contextWindow > 0 && <span className="text-text-dim ml-1">🧠{Math.min(log.tick, contextWindow)}</span>}
+                </span>
+              </div>
+            )}
+          <div className="flex gap-1.5 py-px">
             <span className="text-text-dim w-6 shrink-0 text-right tabular-nums">
               {String(log.tick).padStart(3, "0")}
             </span>
@@ -128,7 +152,9 @@ export function CombatLog({ logs, simplified = false, redImplants = [], redStims
               })()}
             </span>
           </div>
-        ))}
+          </div>
+          );
+        })}
       </div>
     </div>
   );

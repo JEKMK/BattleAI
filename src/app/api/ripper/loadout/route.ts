@@ -15,6 +15,7 @@ export async function GET(req: Request) {
 
     return Response.json({
       credits: runner.credits,
+      contextLevel: runner.contextLevel,
       implants: implants.map((i) => ({ implantId: i.implantId, slotType: i.slotType })),
       stims: stims.map((s) => ({ stimId: s.stimId })),
     });
