@@ -2,7 +2,9 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Arena } from "@/components/arena";
+import dynamic from "next/dynamic";
+const Arena3D = dynamic(() => import("@/components/arena3d").then(m => ({ default: m.Arena3D })), { ssr: false });
+import { audioEngine } from "@/lib/audio";
 import { RunnerCustomizer } from "@/components/runner-customizer";
 import { RipperTerminal } from "@/components/ripper-terminal";
 import { getLoadoutIcons, CONTEXT_LEVELS } from "@/lib/implants";
@@ -209,6 +211,7 @@ export default function Home() {
   const [equippedImplants, setEquippedImplants] = useState<string[]>([]);
   const [activeStims, setActiveStims] = useState<string[]>([]);
   const [contextLevel, setContextLevel] = useState(0);
+  const [audioMuted, setAudioMuted] = useState(false);
   const [runnerShape, setRunnerShape] = useState<RunnerShape>("diamond");
   const [runnerColor, setRunnerColor] = useState("#00f0ff");
   // PVP state
@@ -484,6 +487,10 @@ export default function Home() {
     setLastScore(0);
     abortRef.current = new AbortController();
 
+    // Init audio on first battle (requires user interaction)
+    audioEngine.init();
+    audioEngine.startAmbient();
+
     try {
       const body: Record<string, unknown> = {
         playerPrompt: prompt,
@@ -561,6 +568,7 @@ export default function Home() {
       }
     } finally {
       setIsFighting(false);
+      audioEngine.stopAmbient();
     }
   }, [prompt, faction, isFighting]);
 
@@ -829,6 +837,10 @@ export default function Home() {
             <button onClick={() => setShowLeaderboard(true)}
               className="text-xs font-mono px-2.5 py-1 rounded-sm border border-border text-text-dim hover:text-amber hover:border-amber/50 transition-all">
               RANKING
+            </button>
+            <button onClick={() => setAudioMuted(audioEngine.toggleMute())}
+              className="text-xs font-mono px-2 py-1 rounded-sm border border-border text-text-dim hover:text-text-secondary transition-all">
+              {audioMuted ? "🔇" : "🔊"}
             </button>
           </nav>
         </div>
@@ -1241,8 +1253,11 @@ export default function Home() {
           )}
 
           {/* Arena */}
-          <div className="relative">
-            <Arena state={gameState}
+          <div className="w-full relative" style={{ height: "75vh" }}>
+            {/* Cinematic letterbox bars */}
+            <div className="absolute top-0 left-0 right-0 h-6 bg-black z-10" />
+            <div className="absolute bottom-0 left-0 right-0 h-6 bg-black z-10" />
+            <Arena3D state={gameState}
               redCosmetic={{ shape: runnerShape, color: runnerColor }}
             />
             <AnimatePresence>
