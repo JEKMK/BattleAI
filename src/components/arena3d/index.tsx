@@ -138,7 +138,7 @@ export function Arena3D({ state, redCosmetic, blueCosmetic }: Arena3DProps) {
           <GroundGrid />
 
           <Effects />
-          <fog attach="fog" args={["#030308", 8, 28]} />
+          <fog attach="fog" args={["#030308", 2, 12]} />
         </Suspense>
       </Canvas>
     </div>
