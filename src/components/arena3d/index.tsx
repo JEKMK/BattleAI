@@ -30,9 +30,11 @@ interface Arena3DProps {
   state: GameState | null;
   redCosmetic?: FighterCosmetic;
   blueCosmetic?: FighterCosmetic;
+  redImplants?: string[];
+  redStims?: string[];
 }
 
-export function Arena3D({ state, redCosmetic, blueCosmetic }: Arena3DProps) {
+export function Arena3D({ state, redCosmetic, blueCosmetic, redImplants = [], redStims = [] }: Arena3DProps) {
   const arenaW = state?.arena.width ?? 10;
   const arenaH = state?.arena.height ?? 8;
   const [red, blue] = state?.fighters ?? [null, null];
@@ -138,6 +140,8 @@ export function Arena3D({ state, redCosmetic, blueCosmetic }: Arena3DProps) {
               color={redCosmetic?.color ?? "#00f0ff"}
               arenaW={arenaW}
               arenaH={arenaH}
+              implants={redImplants}
+              stims={redStims}
             />
           )}
           {blue && (

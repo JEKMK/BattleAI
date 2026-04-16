@@ -5,97 +5,104 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { spawnParticles3D } from "./particles-3d";
 
-interface Beam {
+interface Cable {
   start: THREE.Vector3;
   end: THREE.Vector3;
-  current: THREE.Vector3;
   color: THREE.Color;
   hit: boolean;
   life: number;
   maxLife: number;
+  // Bezier control points (shift each frame for writhing)
+  ctrl1Base: THREE.Vector3;
+  ctrl2Base: THREE.Vector3;
+  cableCount: number;
+  type: "shoot" | "punch" | "heavy";
 }
 
-const beams: Beam[] = [];
+const cables: Cable[] = [];
 
+/** Spawn bezier cable attack from A to B */
 export function spawnBeam(
   sx: number, sy: number, sz: number,
   tx: number, ty: number, tz: number,
   color: string,
   hit: boolean,
 ) {
-  const dist = Math.sqrt((tx - sx) ** 2 + (tz - sz) ** 2);
-  beams.push({
-    start: new THREE.Vector3(sx, sy + 0.4, sz),
-    end: new THREE.Vector3(tx, ty + 0.4, tz),
-    current: new THREE.Vector3(sx, sy + 0.4, sz),
-    color: new THREE.Color(color),
-    hit,
+  const start = new THREE.Vector3(sx, sy + 0.4, sz);
+  const end = new THREE.Vector3(tx, ty + 0.4, tz);
+  const dist = start.distanceTo(end);
+  const mid = start.clone().add(end).multiplyScalar(0.5);
+
+  const type = dist > 3 ? "shoot" : "punch";
+  const travelFrames = type === "shoot" ? Math.max(25, dist * 6) : 12;
+
+  cables.push({
+    start, end, color: new THREE.Color(color), hit,
     life: 0,
-    maxLife: Math.max(20, dist * 8) + 15,
+    maxLife: travelFrames + 20,
+    ctrl1Base: mid.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.5, (Math.random() - 0.5) * 2)),
+    ctrl2Base: mid.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 1.5, (Math.random() - 0.5) * 2)),
+    cableCount: type === "shoot" ? 5 : 7,
+    type,
   });
 }
 
 export function Projectiles3D() {
   const groupRef = useRef<THREE.Group>(null);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!groupRef.current) return;
+    const time = clock.getElapsedTime();
 
-    // Clear
+    // Clear previous frame
     while (groupRef.current.children.length > 0) {
       groupRef.current.remove(groupRef.current.children[0]);
     }
 
-    for (let i = beams.length - 1; i >= 0; i--) {
-      const b = beams[i];
-      b.life++;
+    for (let i = cables.length - 1; i >= 0; i--) {
+      const c = cables[i];
+      c.life++;
 
-      const travelFrames = b.maxLife - 15;
-      const t = Math.min(1, b.life / travelFrames);
-      const eased = 1 - (1 - t) * (1 - t);
-      b.current.lerpVectors(b.start, b.end, eased);
+      const travelFrames = c.maxLife - 20;
+      const t = Math.min(1, c.life / travelFrames);
+      const alpha = c.life >= travelFrames ? Math.max(0, 1 - (c.life - travelFrames) / 20) : 1;
 
-      const alpha = b.life >= travelFrames ? Math.max(0, 1 - (b.life - travelFrames) / 15) : 1;
-      if (alpha <= 0) { beams.splice(i, 1); continue; }
+      if (alpha <= 0) { cables.splice(i, 1); continue; }
 
-      if (b.life <= travelFrames + 5) {
-        // === ENERGY BEAM — thick glowing cylinder ===
-        const dir = b.current.clone().sub(b.start);
-        const len = dir.length();
-        if (len > 0.1) {
-          const mid = b.start.clone().add(b.current).multiplyScalar(0.5);
+      // Current reach point (how far the cables have extended)
+      const reach = c.start.clone().lerp(c.end, t);
 
-          // Core beam (bright, thin)
-          const coreGeo = new THREE.CylinderGeometry(0.03, 0.03, len, 4);
-          coreGeo.rotateX(Math.PI / 2);
-          const coreMat = new THREE.MeshBasicMaterial({
-            color: b.color,
-            transparent: true,
-            opacity: alpha * 0.9,
-            blending: THREE.AdditiveBlending,
-          });
-          const core = new THREE.Mesh(coreGeo, coreMat);
-          core.position.copy(mid);
-          core.lookAt(b.current);
-          groupRef.current.add(core);
+      // Draw multiple bezier cables, each with slightly different control points
+      for (let n = 0; n < c.cableCount; n++) {
+        const wobble = Math.sin(time * 8 + n * 2) * 0.3;
+        const ctrl1 = c.ctrl1Base.clone().add(new THREE.Vector3(
+          Math.sin(time * 5 + n) * 0.4 + wobble,
+          Math.cos(time * 3 + n * 1.5) * 0.3,
+          Math.sin(time * 4 + n * 0.7) * 0.4,
+        ));
+        const ctrl2 = c.ctrl2Base.clone().add(new THREE.Vector3(
+          Math.cos(time * 4 + n * 1.2) * 0.3,
+          Math.sin(time * 6 + n) * 0.2 + wobble,
+          Math.cos(time * 5 + n * 0.8) * 0.3,
+        ));
 
-          // Outer glow beam (faint, thick)
-          const glowGeo = new THREE.CylinderGeometry(0.1, 0.1, len, 6);
-          glowGeo.rotateX(Math.PI / 2);
-          const glowMat = new THREE.MeshBasicMaterial({
-            color: b.color,
-            transparent: true,
-            opacity: alpha * 0.15,
-            blending: THREE.AdditiveBlending,
-          });
-          const glow = new THREE.Mesh(glowGeo, glowMat);
-          glow.position.copy(mid);
-          glow.lookAt(b.current);
-          groupRef.current.add(glow);
-        }
+        // Curve from start to current reach
+        const curve = new THREE.CubicBezierCurve3(c.start, ctrl1, ctrl2, reach);
 
-        // Head sphere (bright point at front)
-        const headGeo = new THREE.SphereGeometry(0.08, 6, 6);
+        // Cable tube
+        const tubeGeo = new THREE.TubeGeometry(curve, 16, 0.012 + (n === 0 ? 0.008 : 0), 4, false);
+        const tubeMat = new THREE.MeshBasicMaterial({
+          color: n === 0 ? "#ffffff" : c.color,
+          transparent: true,
+          opacity: alpha * (n === 0 ? 0.8 : 0.4),
+          blending: THREE.AdditiveBlending,
+        });
+        groupRef.current.add(new THREE.Mesh(tubeGeo, tubeMat));
+      }
+
+      // Glowing head at the reach point
+      if (t < 1) {
+        const headGeo = new THREE.SphereGeometry(0.06, 6, 6);
         const headMat = new THREE.MeshBasicMaterial({
           color: "#ffffff",
           transparent: true,
@@ -103,54 +110,66 @@ export function Projectiles3D() {
           blending: THREE.AdditiveBlending,
         });
         const head = new THREE.Mesh(headGeo, headMat);
-        head.position.copy(b.current);
+        head.position.copy(reach);
         groupRef.current.add(head);
 
-        // Spawn trail particles while traveling
-        if (b.life % 2 === 0) {
-          spawnParticles3D(b.current.x, b.current.y, b.current.z, `#${b.color.getHexString()}`, 2, 0.03);
+        // Trail particles from head
+        if (c.life % 3 === 0) {
+          spawnParticles3D(reach.x, reach.y, reach.z, `#${c.color.getHexString()}`, 3, 0.04);
         }
       }
 
       // === IMPACT ===
-      if (b.life === travelFrames) {
-        if (b.hit) {
-          spawnParticles3D(b.end.x, b.end.y, b.end.z, `#${b.color.getHexString()}`, 35, 0.15);
-          spawnParticles3D(b.end.x, b.end.y, b.end.z, "#ffffff", 10, 0.08);
+      if (c.life === travelFrames) {
+        if (c.hit) {
+          // Hit: big particle burst + white flash
+          spawnParticles3D(c.end.x, c.end.y, c.end.z, `#${c.color.getHexString()}`, 40, 0.18);
+          spawnParticles3D(c.end.x, c.end.y, c.end.z, "#ffffff", 15, 0.1);
         } else {
-          spawnParticles3D(b.end.x, b.end.y, b.end.z, "#4a4a5e", 10, 0.06);
+          // Miss: cables dissolve — spawn particles along cable length
+          spawnParticles3D(c.end.x, c.end.y, c.end.z, "#4a4a5e", 12, 0.08);
         }
       }
 
-      // Impact shockwave ring
-      if (b.life >= travelFrames && b.hit) {
-        const impactT = (b.life - travelFrames) / 15;
-        const radius = 0.2 + impactT * 0.8;
-        const ringGeo = new THREE.RingGeometry(radius - 0.03, radius, 24);
+      // Impact effects (post-travel)
+      if (c.life >= travelFrames && c.hit) {
+        const impactT = (c.life - travelFrames) / 20;
+
+        // Expanding shockwave ring
+        const ringRadius = 0.15 + impactT * 0.8;
+        const ringGeo = new THREE.RingGeometry(ringRadius - 0.02, ringRadius, 24);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: b.color,
+          color: c.color,
           transparent: true,
           opacity: (1 - impactT) * 0.5,
           side: THREE.DoubleSide,
           blending: THREE.AdditiveBlending,
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.copy(b.end);
+        ring.position.copy(c.end);
         ring.rotation.x = -Math.PI / 2;
         groupRef.current.add(ring);
 
-        // Flash sphere on impact (first few frames)
-        if (b.life - travelFrames < 4) {
-          const flashGeo = new THREE.SphereGeometry(0.3 - impactT * 0.2, 8, 8);
+        // White flash sphere (first 5 frames)
+        if (c.life - travelFrames < 5) {
+          const flashGeo = new THREE.SphereGeometry(0.25 * (1 - impactT), 8, 8);
           const flashMat = new THREE.MeshBasicMaterial({
             color: "#ffffff",
             transparent: true,
-            opacity: (1 - impactT) * 0.4,
+            opacity: (1 - impactT) * 0.5,
             blending: THREE.AdditiveBlending,
           });
           const flash = new THREE.Mesh(flashGeo, flashMat);
-          flash.position.copy(b.end);
+          flash.position.copy(c.end);
           groupRef.current.add(flash);
+        }
+      }
+
+      // === MISS: cables retract (after travel) ===
+      if (c.life >= travelFrames && !c.hit) {
+        // Cables shorten and spark at tips
+        if (c.life === travelFrames + 3) {
+          spawnParticles3D(c.end.x, c.end.y, c.end.z, `#${c.color.getHexString()}`, 8, 0.05);
         }
       }
     }

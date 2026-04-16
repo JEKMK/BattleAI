@@ -1,5 +1,6 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
+import { MeshReflectorMaterial } from "@react-three/drei";
 import * as THREE from "three";
 import { gridToWorld } from "./utils";
 
@@ -90,10 +91,20 @@ export function HexGrid({ arenaW, arenaH, bounds }: HexGridProps) {
         );
       })}
 
-      {/* Ground plane for shadows */}
+      {/* Reflective ground — black mirror */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.03, 0]} receiveShadow>
-        <planeGeometry args={[arenaW + 2, arenaH + 2]} />
-        <meshStandardMaterial color="#050510" transparent opacity={0.5} />
+        <planeGeometry args={[30, 30]} />
+        <MeshReflectorMaterial
+          blur={[400, 100]}
+          resolution={512}
+          mixBlur={1}
+          mixStrength={0.35}
+          roughness={0.85}
+          depthScale={1.2}
+          color="#050515"
+          metalness={0.5}
+          mirror={0.5}
+        />
       </mesh>
     </group>
   );
