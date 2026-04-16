@@ -1259,6 +1259,8 @@ export default function Home() {
             <div className="absolute bottom-0 left-0 right-0 h-6 bg-black z-10" />
             <Arena3D state={gameState}
               redCosmetic={{ shape: runnerShape, color: runnerColor }}
+              redImplants={equippedImplants}
+              redStims={activeStims}
             />
             <AnimatePresence>
               {isOver && (

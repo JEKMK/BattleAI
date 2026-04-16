@@ -2,6 +2,7 @@
 
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
+import { MeshDistortMaterial, Trail, Float } from "@react-three/drei";
 import * as THREE from "three";
 import type { Fighter, RunnerShape } from "@/lib/types";
 import { gridToWorld, createFighterGeometry } from "./utils";
@@ -12,24 +13,42 @@ const FACTION_COLORS: Record<string, string> = {
   openai: "#39ff14",
 };
 
+// Orbital definitions per implant
+const IMPLANT_ORBITALS: Record<string, { color: string; size: number }> = {
+  gorilla_arms: { color: "#ff6b00", size: 0.06 },
+  kiroshi_optics: { color: "#00f0ff", size: 0.05 },
+  subdermal_armor: { color: "#39ff14", size: 0.06 },
+  neural_processor: { color: "#b44aff", size: 0.05 },
+  mantis_blades: { color: "#ff2d6a", size: 0.06 },
+  kerenzikov: { color: "#ffb800", size: 0.05 },
+  sandevistan: { color: "#ff2d6a", size: 0.06 },
+  projectile_system: { color: "#ff6b00", size: 0.05 },
+  synaptic_booster: { color: "#00f0ff", size: 0.05 },
+  monowire_jack: { color: "#b44aff", size: 0.05 },
+};
+
 interface Fighter3DProps {
   fighter: Fighter;
   shape: RunnerShape;
   color: string;
   arenaW: number;
   arenaH: number;
+  implants?: string[];
+  stims?: string[];
 }
 
-export function Fighter3D({ fighter, shape, color, arenaW, arenaH }: Fighter3DProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const wireRef = useRef<THREE.LineSegments>(null);
-  const shieldRef = useRef<THREE.Mesh>(null);
+export function Fighter3D({ fighter, shape, color, arenaW, arenaH, implants = [], stims = [] }: Fighter3DProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const outerRef = useRef<THREE.Mesh>(null);
+  const innerRef = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const targetPos = useRef(new THREE.Vector3());
 
   const baseColor = color || FACTION_COLORS[fighter.faction] || "#ffffff";
-  const geometry = useMemo(() => createFighterGeometry(shape), [shape]);
-  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
+  const hpRatio = fighter.hp / fighter.maxHp;
+  const instability = 1 - hpRatio;
+
+  const innerGeo = useMemo(() => createFighterGeometry(shape), [shape]);
 
   // State color
   const stateColor = useMemo(() => {
@@ -41,265 +60,224 @@ export function Fighter3D({ fighter, shape, color, arenaW, arenaH }: Fighter3DPr
     return baseColor;
   }, [fighter.isStunned, fighter.isParrying, fighter.isBlocking, fighter.charging, fighter.damageMultiplier, baseColor]);
 
-  // Core material — semi-transparent energy
-  const coreMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: baseColor,
-    emissive: baseColor,
-    emissiveIntensity: 0.6,
-    metalness: 0.3,
-    roughness: 0.2,
-    transparent: true,
-    opacity: 0.7,
-  }), [baseColor]);
-
-  // Wireframe material — energy grid lines
-  const wireMat = useMemo(() => new THREE.LineBasicMaterial({
-    color: baseColor,
-    transparent: true,
-    opacity: 0.9,
-  }), [baseColor]);
-
   useFrame(({ clock }) => {
-    if (!meshRef.current) return;
+    if (!groupRef.current) return;
     const t = clock.getElapsedTime();
-    const hpRatio = fighter.hp / fighter.maxHp;
 
-    // Lerp to target
+    // Lerp to target grid position
     const target = gridToWorld(fighter.x, fighter.y, arenaW, arenaH);
-    target.y = 0.4;
+    target.y = 0.45;
     targetPos.current.copy(target);
-    meshRef.current.position.lerp(targetPos.current, 0.12);
+    groupRef.current.position.lerp(targetPos.current, 0.12);
 
-    // Breathing + rotation
-    meshRef.current.position.y = 0.4 + Math.sin(t * 2) * 0.06;
-    meshRef.current.rotation.y += 0.01;
+    // Breathing float
+    groupRef.current.position.y = 0.45 + Math.sin(t * 2) * 0.08;
 
-    // === DAMAGE VISUALIZATION ===
-    // As HP drops: more transparent, more flickery, wireframe more visible
-    const instability = 1 - hpRatio; // 0 = full HP, 1 = dying
+    // Slow rotation
+    if (outerRef.current) outerRef.current.rotation.y += 0.008;
+    if (innerRef.current) innerRef.current.rotation.y -= 0.005;
 
-    // Core becomes more transparent as HP drops
-    coreMat.opacity = 0.3 + hpRatio * 0.5;
-    coreMat.emissiveIntensity = 0.3 + hpRatio * 0.5;
-
-    // Wireframe becomes more visible as construct destabilizes
-    wireMat.opacity = 0.4 + instability * 0.6;
-
-    // Low HP: flicker (random opacity drops)
-    if (hpRatio < 0.3) {
-      const flicker = Math.random() > 0.85 ? 0.2 : 1;
-      coreMat.opacity *= flicker;
-      wireMat.opacity *= flicker;
-    }
-
-    // Low HP: jitter position
-    if (hpRatio < 0.5) {
-      meshRef.current.position.x += (Math.random() - 0.5) * instability * 0.04;
-      meshRef.current.position.z += (Math.random() - 0.5) * instability * 0.04;
-    }
-
-    // Scale pulses more wildly at low HP
-    const breathScale = 1 + Math.sin(t * (2 + instability * 4)) * (0.03 + instability * 0.05);
-    meshRef.current.scale.setScalar(breathScale);
-
-    // Stunned: heavy glitch
+    // Stun: heavy jitter
     if (fighter.isStunned) {
-      meshRef.current.position.x += (Math.random() - 0.5) * 0.1;
-      meshRef.current.position.z += (Math.random() - 0.5) * 0.1;
-      coreMat.opacity = 0.2 + Math.random() * 0.3;
+      groupRef.current.position.x += (Math.random() - 0.5) * 0.12;
+      groupRef.current.position.z += (Math.random() - 0.5) * 0.12;
     }
 
-    // Update colors to state
-    coreMat.color.set(stateColor);
-    coreMat.emissive.set(stateColor);
-    wireMat.color.set(stateColor);
-
-    // Wireframe follows core
-    if (wireRef.current) {
-      wireRef.current.position.copy(meshRef.current.position);
-      wireRef.current.rotation.copy(meshRef.current.rotation);
-      wireRef.current.scale.copy(meshRef.current.scale);
+    // Low HP jitter
+    if (hpRatio < 0.5) {
+      groupRef.current.position.x += (Math.random() - 0.5) * instability * 0.04;
+      groupRef.current.position.z += (Math.random() - 0.5) * instability * 0.04;
     }
 
-    // Light follows fighter
+    // Light follows
     if (lightRef.current) {
-      lightRef.current.position.copy(meshRef.current.position);
-      lightRef.current.position.y += 0.5;
+      lightRef.current.position.copy(groupRef.current.position);
+      lightRef.current.position.y += 0.6;
       lightRef.current.color.set(stateColor);
-      lightRef.current.intensity = 1 + hpRatio * 1.5 + Math.sin(t * 3) * 0.3;
-    }
-
-    // Shield
-    if (shieldRef.current) {
-      shieldRef.current.position.copy(meshRef.current.position);
-      shieldRef.current.rotation.y = t * 0.3;
-      shieldRef.current.visible = fighter.isBlocking;
+      lightRef.current.intensity = 1.5 + Math.sin(t * 3) * 0.5 + instability;
     }
   });
 
   return (
     <group>
-      {/* Core — semi-transparent energy body */}
-      <mesh
-        ref={meshRef}
-        geometry={geometry}
-        material={coreMat}
-        castShadow
-        position={[0, 0.4, 0]}
-      />
+      <group ref={groupRef} position={[0, 0.45, 0]}>
 
-      {/* Wireframe overlay — energy grid structure */}
-      <lineSegments
-        ref={wireRef}
-        geometry={edgesGeo}
-        material={wireMat}
-      />
-
-      {/* Energy shield dome — full sphere */}
-      <mesh ref={shieldRef} visible={false}>
-        <sphereGeometry args={[0.7, 16, 12]} />
-        <meshStandardMaterial
-          color="#00f0ff"
-          emissive="#00f0ff"
-          emissiveIntensity={1.2}
-          transparent
-          opacity={0.15}
-          side={THREE.DoubleSide}
-          wireframe
-        />
-      </mesh>
-      {/* Shield inner glow */}
-      {fighter.isBlocking && (
-        <mesh position={meshRef.current?.position ?? [0, 0.4, 0]}>
-          <sphereGeometry args={[0.65, 12, 8]} />
-          <meshBasicMaterial
-            color="#00f0ff"
+        {/* OUTER SHELL — MeshDistortMaterial (organic mutation) */}
+        <mesh ref={outerRef} castShadow>
+          <icosahedronGeometry args={[0.42, 4]} />
+          <MeshDistortMaterial
+            color={stateColor}
+            emissive={stateColor}
+            emissiveIntensity={0.25 + instability * 0.3}
+            speed={1.5 + instability * 5}
+            distort={0.15 + instability * 0.5}
+            metalness={0.85}
+            roughness={0.15}
             transparent
-            opacity={0.06}
-            blending={THREE.AdditiveBlending}
-            side={THREE.DoubleSide}
+            opacity={0.35 + hpRatio * 0.15}
           />
         </mesh>
-      )}
 
-      {/* Parry lightning arcs */}
-      {fighter.isParrying && <ParryArcs position={meshRef.current?.position} />}
+        {/* INNER CORE — fighter shape, bright, solid-ish */}
+        <mesh ref={innerRef} castShadow scale={0.65}>
+          <primitive object={innerGeo} attach="geometry" />
+          <meshStandardMaterial
+            color={stateColor}
+            emissive={stateColor}
+            emissiveIntensity={0.6 + Math.sin(Date.now() * 0.003) * 0.2}
+            metalness={0.7}
+            roughness={0.2}
+            transparent
+            opacity={0.7 + hpRatio * 0.2}
+          />
+        </mesh>
 
-      {/* Charging ring */}
-      {fighter.charging && <ChargingRing position={meshRef.current?.position} />}
+        {/* BLOCK — crystalline shield dome */}
+        {fighter.isBlocking && (
+          <mesh scale={1.3}>
+            <icosahedronGeometry args={[0.5, 1]} />
+            <meshStandardMaterial
+              color="#00f0ff"
+              emissive="#00f0ff"
+              emissiveIntensity={1.0}
+              transparent
+              opacity={0.12}
+              wireframe
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
 
-      {/* Dynamic light */}
-      <pointLight
-        ref={lightRef}
-        color={stateColor}
-        intensity={2}
-        distance={4}
-        decay={2}
-      />
+        {/* PARRY — electric crystalline shell */}
+        {fighter.isParrying && (
+          <mesh scale={1.2}>
+            <octahedronGeometry args={[0.5]} />
+            <meshStandardMaterial
+              color="#ff2d6a"
+              emissive="#ff2d6a"
+              emissiveIntensity={1.5}
+              transparent
+              opacity={0.2}
+              wireframe
+            />
+          </mesh>
+        )}
 
-      {/* 2x badge */}
-      {fighter.damageMultiplier > 1 && meshRef.current && (
-        <sprite position={[meshRef.current.position.x, meshRef.current.position.y + 0.7, meshRef.current.position.z]} scale={[0.3, 0.15, 1]}>
-          <spriteMaterial color="#ff2d6a" />
-        </sprite>
-      )}
+        {/* CHARGING — expanding rings */}
+        {fighter.charging && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.5, 0.02, 8, 32]} />
+            <meshBasicMaterial
+              color="#ffb800"
+              transparent
+              opacity={0.5}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        )}
 
-      {/* HP indicator — ring on ground */}
-      <HpRing
-        position={meshRef.current?.position}
-        hpRatio={fighter.hp / fighter.maxHp}
-        color={baseColor}
-      />
+        {/* ORBITAL IMPLANTS */}
+        {implants.map((implantId, i) => {
+          const orbital = IMPLANT_ORBITALS[implantId];
+          if (!orbital) return null;
+          const phase = (i / Math.max(implants.length, 1)) * Math.PI * 2;
+          return (
+            <OrbitalImplant
+              key={implantId}
+              color={orbital.color}
+              size={orbital.size}
+              radius={0.75}
+              phase={phase}
+              speed={1.2}
+            />
+          );
+        })}
+
+        {/* ORBITAL STIMS (pulsing, temporary) */}
+        {stims.map((stimId, i) => (
+          <OrbitalImplant
+            key={`stim-${stimId}`}
+            color="#ffb800"
+            size={0.04}
+            radius={0.6}
+            phase={i * Math.PI + Math.PI / 4}
+            speed={2.0}
+            pulsing
+          />
+        ))}
+
+        {/* 2x damage badge */}
+        {fighter.damageMultiplier > 1 && (
+          <mesh position={[0, 0.6, 0]}>
+            <sphereGeometry args={[0.05, 6, 6]} />
+            <meshBasicMaterial color="#ff2d6a" />
+          </mesh>
+        )}
+      </group>
+
+      {/* HP ring on ground */}
+      <HpRing fighter={fighter} arenaW={arenaW} arenaH={arenaH} color={baseColor} />
+
+      {/* Point light */}
+      <pointLight ref={lightRef} color={stateColor} intensity={2} distance={4} decay={2} />
     </group>
   );
 }
 
-/** HP as a ground ring that shrinks with damage */
-function HpRing({ position, hpRatio, color }: { position?: THREE.Vector3; hpRatio: number; color: string }) {
+/** Orbiting mini-mesh with trail */
+function OrbitalImplant({ color, size, radius, phase, speed, pulsing = false }: {
+  color: string; size: number; radius: number; phase: number; speed: number; pulsing?: boolean;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (!meshRef.current) return;
+    const t = clock.getElapsedTime() * speed + phase;
+    meshRef.current.position.set(
+      Math.cos(t) * radius,
+      Math.sin(t * 0.7) * 0.15,
+      Math.sin(t) * radius,
+    );
+    if (pulsing) {
+      meshRef.current.scale.setScalar(0.8 + Math.sin(clock.getElapsedTime() * 4) * 0.3);
+    }
+  });
+
+  return (
+    <Trail width={0.3} length={4} color={color} attenuation={(t) => t * t}>
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[size, 6, 6]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={pulsing ? 0.6 : 0.9}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </Trail>
+  );
+}
+
+/** HP ring on ground */
+function HpRing({ fighter, arenaW, arenaH, color }: { fighter: Fighter; arenaW: number; arenaH: number; color: string }) {
   const ref = useRef<THREE.Mesh>(null);
+  const hpRatio = fighter.hp / fighter.maxHp;
 
   useFrame(() => {
-    if (!ref.current || !position) return;
-    ref.current.position.set(position.x, 0.02, position.z);
+    if (!ref.current) return;
+    const pos = gridToWorld(fighter.x, fighter.y, arenaW, arenaH);
+    ref.current.position.set(pos.x, 0.02, pos.z);
   });
 
   const ringColor = hpRatio > 0.5 ? "#39ff14" : hpRatio > 0.25 ? "#ffb800" : "#ff2d6a";
 
   return (
     <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.45 * hpRatio, 0.5, 32]} />
+      <ringGeometry args={[0.4 * hpRatio, 0.45, 32]} />
       <meshBasicMaterial
         color={ringColor}
         transparent
-        opacity={0.4}
-        blending={THREE.AdditiveBlending}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
-  );
-}
-
-/** Electric arcs around fighter for parry state */
-function ParryArcs({ position }: { position?: THREE.Vector3 }) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame(({ clock }) => {
-    if (!groupRef.current || !position) return;
-    groupRef.current.position.copy(position);
-
-    // Regenerate arcs each frame for lightning effect
-    while (groupRef.current.children.length > 0) {
-      const child = groupRef.current.children[0];
-      groupRef.current.remove(child);
-    }
-
-    const t = clock.getElapsedTime();
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2 + t * 2;
-      const points: THREE.Vector3[] = [];
-      const segments = 4;
-      for (let s = 0; s <= segments; s++) {
-        const r = 0.3 + (s / segments) * 0.5;
-        const jitterX = (Math.random() - 0.5) * 0.15;
-        const jitterY = (Math.random() - 0.5) * 0.15;
-        points.push(new THREE.Vector3(
-          Math.cos(angle) * r + jitterX,
-          jitterY,
-          Math.sin(angle) * r + jitterX,
-        ));
-      }
-      const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-      const lineMat = new THREE.LineBasicMaterial({
-        color: "#ff2d6a",
-        transparent: true,
-        opacity: 0.6 + Math.random() * 0.4,
-      });
-      groupRef.current.add(new THREE.Line(lineGeo, lineMat));
-    }
-  });
-
-  return <group ref={groupRef} />;
-}
-
-/** Pulsing ring for charging heavy */
-function ChargingRing({ position }: { position?: THREE.Vector3 }) {
-  const ref = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (!ref.current || !position) return;
-    ref.current.position.copy(position);
-    const pulse = 0.5 + Math.sin(clock.getElapsedTime() * 6) * 0.5;
-    ref.current.scale.setScalar(0.8 + pulse * 0.4);
-    (ref.current.material as THREE.MeshBasicMaterial).opacity = pulse * 0.3;
-  });
-
-  return (
-    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.5, 0.55, 32]} />
-      <meshBasicMaterial
-        color="#ffb800"
-        transparent
-        opacity={0.3}
+        opacity={0.5}
         blending={THREE.AdditiveBlending}
         side={THREE.DoubleSide}
       />
