@@ -54,6 +54,21 @@ export interface Fighter {
   isParrying: boolean;
   isStunned: boolean;
   damageMultiplier: number; // 2x after successful parry
+  buffs: {
+    powerSurge: number;    // ticks remaining (+2 all dmg)
+    firewallBoost: number; // ticks remaining (+block effectiveness)
+  };
+  campingTicks: number; // consecutive ticks without moving
+}
+
+export interface ArenaItem {
+  id: string;
+  type: "repair_kit" | "firewall_boost" | "power_surge" | "virus_trap" | "emp_burst" | "overclock";
+  x: number;
+  y: number;
+  ticksLeft: number;
+  label: string;
+  effect: string;
 }
 
 export interface GameState {
@@ -62,6 +77,7 @@ export interface GameState {
   /** Active playable bounds — shrinks over time */
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
   fighters: [Fighter, Fighter];
+  items: ArenaItem[];
   status: "fighting" | "ko" | "timeout";
   winner: "red" | "blue" | "draw" | null;
   log: LogEntry[];
@@ -70,7 +86,7 @@ export interface GameState {
 export interface LogEntry {
   tick: number;
   fighter: "red" | "blue";
-  type: "move" | "attack" | "hit" | "miss" | "block" | "dodge" | "parry" | "stun" | "ko" | "system" | "heal";
+  type: "move" | "attack" | "hit" | "miss" | "block" | "dodge" | "parry" | "stun" | "ko" | "system" | "heal" | "item" | "camping";
   message: string;
   // For floating text rendering
   x?: number;
