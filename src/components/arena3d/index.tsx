@@ -11,6 +11,7 @@ import { Particles3D, spawnParticles3D } from "./particles-3d";
 import { Projectiles3D, spawnBeam } from "./projectiles-3d";
 import { Effects } from "./effects";
 import { MatrixRain, LightWisps, DataColumns, GroundGrid } from "./atmosphere";
+import { Items3D } from "./items-3d";
 import { gridToWorld } from "./utils";
 import { audioEngine } from "@/lib/audio";
 
@@ -66,15 +67,31 @@ export function Arena3D({ state, redCosmetic, blueCosmetic }: Arena3DProps) {
       // Particles
       if (log.type === "hit") {
         const isHeavy = log.message.includes("Hammer");
-        spawnParticles3D(pos.x, pos.y, pos.z, "#ffb800", isHeavy ? 50 : 25, isHeavy ? 0.2 : 0.12);
+        // Orange burst + white core
+        spawnParticles3D(pos.x, pos.y, pos.z, "#ffb800", isHeavy ? 60 : 35, isHeavy ? 0.22 : 0.14);
+        spawnParticles3D(pos.x, pos.y, pos.z, "#ffffff", isHeavy ? 15 : 8, isHeavy ? 0.1 : 0.06);
       } else if (log.type === "ko") {
-        spawnParticles3D(pos.x, pos.y, pos.z, "#ff2d6a", 100, 0.25);
+        // Massive explosion — multi-color
+        spawnParticles3D(pos.x, pos.y, pos.z, "#ff2d6a", 120, 0.3);
+        spawnParticles3D(pos.x, pos.y, pos.z, "#ffffff", 40, 0.2);
+        spawnParticles3D(pos.x, pos.y, pos.z, "#ffb800", 30, 0.25);
       } else if (log.type === "parry") {
         spawnParticles3D(pos.x, pos.y, pos.z, "#ff2d6a", 20, 0.1);
       } else if (log.type === "dodge") {
         spawnParticles3D(pos.x, pos.y, pos.z, "#00f0ff", 15, 0.08);
       } else if (log.type === "stun") {
         spawnParticles3D(pos.x, pos.y, pos.z, "#ff2d6a", 18, 0.1);
+      } else if (log.type === "item") {
+        // Item pickup — spiral particles upward
+        const itemColor = log.message.includes("REPAIR") ? "#39ff14" :
+          log.message.includes("POWER") ? "#ffb800" :
+          log.message.includes("FIREWALL") ? "#00f0ff" :
+          log.message.includes("VIRUS") ? "#ff2d6a" :
+          log.message.includes("EMP") ? "#b44aff" : "#ffffff";
+        spawnParticles3D(pos.x, pos.y, pos.z, itemColor, 40, 0.15);
+        audioEngine.play("hit"); // reuse hit sound for pickup
+      } else if (log.type === "camping") {
+        spawnParticles3D(pos.x, pos.y, pos.z, "#ff2d6a", 12, 0.08);
       }
 
       // Projectile beams for shoot/spike
@@ -108,6 +125,11 @@ export function Arena3D({ state, redCosmetic, blueCosmetic }: Arena3DProps) {
           <Camera arenaW={arenaW} arenaH={arenaH} />
           <Lights />
           <HexGrid arenaW={arenaW} arenaH={arenaH} bounds={state?.bounds} />
+
+          {/* Arena items */}
+          {state && state.items.length > 0 && (
+            <Items3D items={state.items} arenaW={arenaW} arenaH={arenaH} />
+          )}
 
           {red && (
             <Fighter3D

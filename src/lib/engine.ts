@@ -38,6 +38,8 @@ export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameS
     isParrying: false,
     isStunned: false,
     damageMultiplier: 1,
+    buffs: { powerSurge: 0, firewallBoost: 0 },
+    campingTicks: 0,
   };
 
   const blue: Fighter = {
@@ -56,6 +58,8 @@ export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameS
     isParrying: false,
     isStunned: false,
     damageMultiplier: 1,
+    buffs: { powerSurge: 0, firewallBoost: 0 },
+    campingTicks: 0,
   };
 
   return {
@@ -63,6 +67,7 @@ export function createInitialState(config: BattleConfig = DEFAULT_CONFIG): GameS
     arena: { width: config.arenaWidth, height: config.arenaHeight },
     bounds: { minX: 0, minY: 0, maxX: config.arenaWidth - 1, maxY: config.arenaHeight - 1 },
     fighters: [red, blue],
+    items: [],
     status: "fighting",
     winner: null,
     log: [],
@@ -238,12 +243,13 @@ export function resolveTick(
     // Moving + attacking = 50% damage. Standing still = full damage.
     const mobilityPenalty = moved ? 0.5 : 1.0;
     const multi = actor.damageMultiplier * mobilityPenalty;
-    // First strike bonus — check if actor has any previous hits in the full battle log
+    // First strike bonus + buff bonus
     const fx = getEffects(actorId);
     const hasHitBefore = [...state.log, ...newLogs].some(
       (l) => l.fighter === actorId && (l.type === "hit" || l.type === "attack")
     );
     const firstStrikeBonus = (!hasHitBefore && fx.firstStrikeDmg > 0) ? fx.firstStrikeDmg : 0;
+    const buffDmgBonus = actor.buffs.powerSurge > 0 ? 2 : 0;
     const hpTag = (f: Fighter) => `[${f.hp}/${f.maxHp}]`;
     const movingTag = moved ? " (moving)" : "";
 
@@ -259,7 +265,7 @@ export function resolveTick(
             return;
           }
 
-          let dmg = Math.max(1, Math.floor((fx.punchDmg + fx.allDmgBonus + firstStrikeBonus) * multi));
+          let dmg = Math.max(1, Math.floor((fx.punchDmg + fx.allDmgBonus + firstStrikeBonus + buffDmgBonus) * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg / 2));
             newLogs.push(logWithPos(next.tick, actorId, "attack", `Burn hit shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
@@ -296,7 +302,7 @@ export function resolveTick(
             break;
           }
 
-          let dmg = Math.max(1, Math.floor((fx.shootDmg + fx.allDmgBonus + firstStrikeBonus) * multi));
+          let dmg = Math.max(1, Math.floor((fx.shootDmg + fx.allDmgBonus + firstStrikeBonus + buffDmgBonus) * multi));
           if (target.isBlocking) {
             dmg = 0;
             newLogs.push(logWithPos(next.tick, actorId, "miss", `Spike deflected by firewall at dist ${dist}`, target));
@@ -327,7 +333,7 @@ export function resolveTick(
             return;
           }
 
-          let dmg = Math.max(1, Math.floor((fx.heavyDmg + fx.allDmgBonus + firstStrikeBonus) * multi));
+          let dmg = Math.max(1, Math.floor((fx.heavyDmg + fx.allDmgBonus + firstStrikeBonus + buffDmgBonus) * multi));
           if (target.isBlocking) {
             dmg = Math.max(1, Math.floor(dmg * 0.6));
             newLogs.push(logWithPos(next.tick, actorId, "hit", `Hammer cracks shield -${dmg} ICE${movingTag} ${hpTag(target)}`, target));
@@ -375,6 +381,128 @@ export function resolveTick(
     if (fx.regenPerTicks > 0 && next.tick % fx.regenPerTicks === 0 && fighter.hp > 0 && fighter.hp < fighter.maxHp) {
       fighter.hp = Math.min(fighter.maxHp, fighter.hp + 1);
       newLogs.push(logWithPos(next.tick, fighterId, "heal", `+1 HP (regen) [${fighter.hp}/${fighter.maxHp}]`, fighter));
+    }
+  }
+
+  // === ITEM PICKUP ===
+  for (const [fighter, fighterId] of [[red, "red"], [blue, "blue"]] as const) {
+    const pickedIdx = next.items.findIndex((item) => item.x === fighter.x && item.y === fighter.y);
+    if (pickedIdx >= 0 && fighter.hp > 0) {
+      const item = next.items[pickedIdx];
+      next.items.splice(pickedIdx, 1);
+      switch (item.type) {
+        case "repair_kit":
+          fighter.hp = Math.min(fighter.maxHp, fighter.hp + 5);
+          newLogs.push(logWithPos(next.tick, fighterId, "item", `Picked up REPAIR KIT — +5 HP [${fighter.hp}/${fighter.maxHp}]`, fighter));
+          break;
+        case "power_surge":
+          fighter.buffs.powerSurge = 3;
+          newLogs.push(logWithPos(next.tick, fighterId, "item", `Picked up POWER SURGE — +2 DMG for 3 ticks`, fighter));
+          break;
+        case "firewall_boost":
+          fighter.buffs.firewallBoost = 3;
+          newLogs.push(logWithPos(next.tick, fighterId, "item", `Picked up FIREWALL BOOST — enhanced block for 3 ticks`, fighter));
+          break;
+        case "virus_trap":
+          fighter.hp = Math.max(0, fighter.hp - 1);
+          newLogs.push(logWithPos(next.tick, fighterId, "item", `VIRUS TRAP! -1 HP [${fighter.hp}/${fighter.maxHp}]`, fighter));
+          break;
+        case "emp_burst": {
+          const enemy = fighterId === "red" ? blue : red;
+          enemy.isStunned = true;
+          newLogs.push(logWithPos(next.tick, fighterId, "item", `EMP BURST — enemy stunned!`, enemy));
+          break;
+        }
+        case "overclock":
+          fighter.cooldowns = { dash: 0, dodge: 0, heavy: 0, parry: 0 };
+          newLogs.push(logWithPos(next.tick, fighterId, "item", `OVERCLOCK — all cooldowns reset!`, fighter));
+          break;
+      }
+    }
+  }
+
+  // === ITEM SPAWN ===
+  const ITEM_DEFS = [
+    { type: "repair_kit" as const, label: "REPAIR KIT", effect: "+5 HP", weight: 25 },
+    { type: "firewall_boost" as const, label: "FIREWALL BOOST", effect: "+2 block 3 ticks", weight: 20 },
+    { type: "power_surge" as const, label: "POWER SURGE", effect: "+2 dmg 3 ticks", weight: 20 },
+    { type: "virus_trap" as const, label: "VIRUS TRAP", effect: "-1 HP (trap!)", weight: 15 },
+    { type: "emp_burst" as const, label: "EMP BURST", effect: "Stun enemy 1 tick", weight: 10 },
+    { type: "overclock" as const, label: "OVERCLOCK", effect: "Reset all cooldowns", weight: 10 },
+  ];
+  // Spawn: first at tick 10-20, then every 15-25 ticks, max 2 items
+  if (next.items.length < 2 && next.tick >= 10) {
+    const shouldSpawn = next.tick <= 20
+      ? next.tick === 10 + Math.floor(Math.random() * 10)
+      : Math.random() < 0.06; // ~1 every 17 ticks
+    if (shouldSpawn) {
+      // Pick random empty tile
+      const b = next.bounds;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const ix = b.minX + Math.floor(Math.random() * (b.maxX - b.minX + 1));
+        const iy = b.minY + Math.floor(Math.random() * (b.maxY - b.minY + 1));
+        const onFighter = (red.x === ix && red.y === iy) || (blue.x === ix && blue.y === iy);
+        const onItem = next.items.some((it) => it.x === ix && it.y === iy);
+        const tooClose = Math.abs(red.x - ix) + Math.abs(red.y - iy) <= 1 || Math.abs(blue.x - ix) + Math.abs(blue.y - iy) <= 1;
+        if (!onFighter && !onItem && !tooClose) {
+          // Weighted random pick
+          const totalWeight = ITEM_DEFS.reduce((s, d) => s + d.weight, 0);
+          let roll = Math.random() * totalWeight;
+          let picked = ITEM_DEFS[0];
+          for (const def of ITEM_DEFS) {
+            roll -= def.weight;
+            if (roll <= 0) { picked = def; break; }
+          }
+          next.items.push({
+            id: `item_${next.tick}_${ix}_${iy}`,
+            type: picked.type,
+            x: ix, y: iy,
+            ticksLeft: 15,
+            label: picked.label,
+            effect: picked.effect,
+          });
+          newLogs.push({ tick: next.tick, fighter: "red", type: "system", message: `${picked.label} appeared at (${ix},${iy})` });
+          break;
+        }
+      }
+    }
+  }
+
+  // Item despawn
+  for (let i = next.items.length - 1; i >= 0; i--) {
+    next.items[i].ticksLeft--;
+    if (next.items[i].ticksLeft <= 0) {
+      newLogs.push({ tick: next.tick, fighter: "red", type: "system", message: `${next.items[i].label} despawned` });
+      next.items.splice(i, 1);
+    }
+  }
+
+  // === BUFF TICK DOWN ===
+  for (const fighter of [red, blue]) {
+    if (fighter.buffs.powerSurge > 0) fighter.buffs.powerSurge--;
+    if (fighter.buffs.firewallBoost > 0) fighter.buffs.firewallBoost--;
+  }
+
+  // === ANTI-CAMPING ===
+  // Track using prevPos stored before movement
+  if (red.x === (state.fighters[0].x) && red.y === (state.fighters[0].y)) {
+    red.campingTicks++;
+  } else {
+    red.campingTicks = 0;
+  }
+  if (blue.x === (state.fighters[1].x) && blue.y === (state.fighters[1].y)) {
+    blue.campingTicks++;
+  } else {
+    blue.campingTicks = 0;
+  }
+
+  for (const [fighter, fighterId] of [[red, "red"], [blue, "blue"]] as const) {
+    if (fighter.campingTicks === 5) {
+      newLogs.push(logWithPos(next.tick, fighterId, "camping", "Neural lock detected — move or suffer!", fighter));
+    }
+    if (fighter.campingTicks >= 5 && fighter.hp > 0) {
+      fighter.hp = Math.max(0, fighter.hp - 1);
+      newLogs.push(logWithPos(next.tick, fighterId, "camping", `Camper burn -1 HP [${fighter.hp}/${fighter.maxHp}]`, fighter));
     }
   }
 
@@ -430,6 +558,11 @@ export function buildTickInput(state: GameState, fighterId: "red" | "blue", allo
       cooldowns: me.cooldowns,
       isBlocking: me.isBlocking,
       isStunned: me.isStunned,
+      campingTicks: me.campingTicks,
+      buffs: me.buffs.powerSurge > 0 || me.buffs.firewallBoost > 0 ? {
+        ...(me.buffs.powerSurge > 0 && { powerSurge: me.buffs.powerSurge }),
+        ...(me.buffs.firewallBoost > 0 && { firewallBoost: me.buffs.firewallBoost }),
+      } : undefined,
     },
     enemy: {
       x: enemy.x, y: enemy.y, hp: enemy.hp,
@@ -437,6 +570,7 @@ export function buildTickInput(state: GameState, fighterId: "red" | "blue", allo
       isBlocking: enemy.isBlocking,
       isStunned: enemy.isStunned,
     },
+    items: state.items.map((it) => ({ x: it.x, y: it.y, type: it.type, effect: it.effect, ticksLeft: it.ticksLeft })),
     arena: state.arena,
     bounds: state.bounds,
     history: recentLogs,
@@ -502,7 +636,11 @@ Moving + attacking = half damage. Standing still + attacking = full damage.`;
 
   rules += `
 
-Input: you receive tick state as JSON with distance, positions, cooldowns, and recent history.
+ITEMS: Items spawn randomly on the map. Move onto an item tile to pick it up. Types: REPAIR KIT (+5 HP), POWER SURGE (+2 dmg 3 ticks), FIREWALL BOOST (better block 3 ticks), VIRUS TRAP (-1 HP!), EMP BURST (stun enemy), OVERCLOCK (reset cooldowns).
+
+CAMPING: Standing on the same tile for 5+ ticks causes neural lock burn (-1 HP/tick). Keep moving!
+
+Input: you receive tick state as JSON with distance, positions, cooldowns, items on map, and recent history.
 
 Respond with one JSON object only:
 {"move":"up","action":"punch"}`;
