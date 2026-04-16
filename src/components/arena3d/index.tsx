@@ -129,7 +129,7 @@ export function Arena3D({ state, redCosmetic, blueCosmetic, redImplants = [], re
           <HexGrid arenaW={arenaW} arenaH={arenaH} bounds={state?.bounds} />
 
           {/* Arena items */}
-          {state && state.items.length > 0 && (
+          {state && state.items?.length > 0 && (
             <Items3D items={state.items} arenaW={arenaW} arenaH={arenaH} />
           )}
 
